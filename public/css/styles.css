@@ -1,0 +1,14 @@
+#canvas-container {
+    width: 100%;
+    text-align:center;
+}
+
+#image-container {
+    display: none;
+}
+
+canvas {
+    display: inline;
+    width: 1200px;
+    heigh: 800px;
+}

@@ -1,0 +1,11 @@
+{
+	"name" : "Quiz_game",
+	"desciption" : "Clio Multiplayer Quiz game, An E-learning multiplayer game",
+	"author" : "Rasmus Krøyer Jørgensen",
+	"version" : "0.0.1",
+	"dependencies" :{
+		"express" : "3.x",
+		"jade" : "*",
+		"socket.io" : "*"
+	}
+}
