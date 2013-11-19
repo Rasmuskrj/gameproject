@@ -13,10 +13,13 @@ html
     h1#header Welcome to the game
     #canvas-container
       canvas#board(height="800" width="1200")
-    button#move-button(type="button").
-      move
-    button#question-button(type="button").
-      Question!
+    .btn-group
+      button#move-button(type="button" class="btn btn-default").
+        move
+      button#question-button(type="button" class="btn btn-default").
+        Question!
+      button#start-button(type="button" class="btn btn-default").
+        Start Game
     #image-container
       img#boardPiece(src="download.jpg")
 

@@ -18,9 +18,11 @@ function Player(pos, identifier, color, socketId){
     this.color = color;
     this.id = identifier;
     this.socketId = socketId;
+    this.winner = false;
 }
 var players = [],
     colors = ['red','blue','yellow','green'],
+    idHasTurn = 0;
     colorPointer = 0;
 
 function addPlayer(pos, identifier, color, socketId) {
@@ -53,7 +55,7 @@ function getQuestion(){
 
 io.sockets.on('connection', function(socket){
     socket.on('newPlayer', function(data){
-       addPlayer(0,data.player, colors[colorPointer++],socket.id);
+       addPlayer(0,players.length, colors[colorPointer++],socket.id);
        socket.broadcast.emit('newPlayer',players);
        socket.emit('init', players);
        console.log("player joined");
@@ -64,6 +66,11 @@ io.sockets.on('connection', function(socket){
         for(var i=0;i<players.length;i++){
             if(players[i].id==data.player){
                 players[i].position = (players[i].position + 1)%8;
+                if(players[i].position == 0){
+                    players[i].winner = true;
+                    socket.emit('playerWon');
+                    socket.broadcast.emit('playerLost');
+                }
             }
         }
         socket.broadcast.emit('playerMoved',players);
@@ -76,13 +83,38 @@ io.sockets.on('connection', function(socket){
         socket.emit('questionResponse', question);
     });
 
+    socket.on('startGame', function(data) {
+        io.sockets.emit('gameStarted');
+        console.log("game Started");
+        socket.emit('startTurn');
+        for (var i = 0; i < players.length; i++) {
+            if (data.player === players[i].id) {
+                idHasTurn = players[i].id;
+            };
+        };
+
+    });
+
     socket.on('disconnect', function(){
         for(var i = 0; i < players.length; i++){
             if(players[i].socketId == socket.id){
+                colors.push(players[i].color);
                 players.splice(i,1);
             }
         }
         socket.broadcast.emit('playerDisconnected', players);
         console.log(players);
     })
+
+    socket.on('turnEnded', function(data) {
+        console.log("Player " + data.player + " ended turn");
+        for (var i = 0; i < players.length; i++) {
+            if (players[i].id === data.player) {
+                console.log("Asked player " + (i+1)%players.length + " to start turn");
+                if(!players[i].winner){
+                    io.sockets.socket(players[(i+1)%players.length].socketId).emit('startTurn');
+                }
+            };
+        };
+    });
 });

@@ -132,10 +132,12 @@ $(function(){
     var socket = io.connect(window.location.hostname),
         moveButton = $('#move-button'),
         questionButton = $('#question-button'),
+        startButton = $('#start-button'),
         playerPos = 0,
         players = [],
         myColor = '',
         answer = false,
+        gameStarted = false;
         playerId = Math.round($.now()*Math.random());
         board = new Board;
 
@@ -155,6 +157,10 @@ $(function(){
     function checkAnswer(isCorrect){
         if(isCorrect){socket.emit('playerMoved',{player: playerId})}
         else{bootbox.alert("Sorry, that's wrong!")}
+        console.log(gameStarted);
+        if(gameStarted){socket.emit('turnEnded',{
+            'player' : playerId
+        });}
     }
 
     socket.on('newPlayer',function(data){
@@ -170,11 +176,9 @@ $(function(){
 
     socket.on('init',function(data){
        players = data;
-       var result = $.grep(players, function(e){
-           return e.id = playerId;
-       });
-       myColor = result[0].color;
-       playerPos = result[0].position;
+       playerId = data.length-1;
+       myColor = data[playerId].color;
+       playerPos = data[playerId].position;
        console.log("init called this" + players);
        updatePositions();
     });
@@ -215,6 +219,28 @@ $(function(){
        updatePositions();
     });
 
+    socket.on('gameStarted', function() {
+        moveButton.prop("disabled", true);
+        questionButton.prop("disabled", true);
+        startButton.prop("disabled", true);
+        gameStarted = true;
+    });
+
+    socket.on('startTurn', function() {
+        console.log("start turn called");
+        socket.emit('question',{
+            'player' : playerId
+        });
+    });
+
+    socket.on('playerWon',function() {
+        bootbox.alert("You won! Congratulations!");
+    });
+
+    socket.on('playerLost', function() {
+        bootbox.alert("You lost! Better luck next time!");
+    });
+
     moveButton.on('click',function(){
         socket.emit('playerMoved',{
             'player' : playerId
@@ -226,6 +252,13 @@ $(function(){
            'player' : playerId
        });
     });
+
+    startButton.on('click', function(){
+        socket.emit('startGame',{
+            'player' : playerId
+        });
+    });
+
 
     socket.emit('newPlayer', {
         'player' : playerId
