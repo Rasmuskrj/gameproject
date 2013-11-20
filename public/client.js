@@ -219,11 +219,17 @@ $(function(){
        updatePositions();
     });
 
-    socket.on('gameStarted', function() {
+    socket.on('gameStarted', function(data) {
+        console.log("Game Started");
         moveButton.prop("disabled", true);
         questionButton.prop("disabled", true);
         startButton.prop("disabled", true);
         gameStarted = true;
+        players = data;
+        updatePositions();
+        socket.emit('ready',{
+            'player' : playerId
+        })
     });
 
     socket.on('startTurn', function() {
@@ -235,10 +241,18 @@ $(function(){
 
     socket.on('playerWon',function() {
         bootbox.alert("You won! Congratulations!");
+        gameStarted = false;
+        moveButton.prop("disabled", false);
+        questionButton.prop("disabled", false);
+        startButton.prop("disabled", false);
     });
 
     socket.on('playerLost', function() {
         bootbox.alert("You lost! Better luck next time!");
+        gameStarted = false;
+        moveButton.prop("disabled", false);
+        questionButton.prop("disabled", false);
+        startButton.prop("disabled", false);
     });
 
     moveButton.on('click',function(){

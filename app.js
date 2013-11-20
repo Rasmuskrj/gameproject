@@ -84,15 +84,24 @@ io.sockets.on('connection', function(socket){
     });
 
     socket.on('startGame', function(data) {
-        io.sockets.emit('gameStarted');
+        for(i = 0; i < players.length; i++){
+            players[i].position = 0;
+            players[i].winner = false;
+        }
+        io.sockets.emit('gameStarted',players);
         console.log("game Started");
-        socket.emit('startTurn');
         for (var i = 0; i < players.length; i++) {
             if (data.player === players[i].id) {
                 idHasTurn = players[i].id;
             };
         };
 
+    });
+
+    socket.on('ready', function(data){
+       if(data.player == idHasTurn){
+           socket.emit("startTurn");
+       }
     });
 
     socket.on('disconnect', function(){
