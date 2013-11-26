@@ -2,11 +2,11 @@ function Board(){
     var doc = $(document);
     var canvas = $('#board');
     var ctx = canvas[0].getContext("2d");
-    var midx = canvas.width() / 2,
+    var midx = canvas.width() / 2 - 200,
         midy = canvas.height() / 2,
-        rectWidth = 1000,
-        rectHeight = 600,
-        gamePathWidth = 200,
+        rectWidth = 500,
+        rectHeight = 300,
+        gamePathWidth = 100,
         innerRectWidth = rectWidth - gamePathWidth,
         innerRectHeight = rectHeight - gamePathWidth,
         colors = ['red','blue','yellow','black'],
@@ -96,18 +96,21 @@ function Board(){
     this.drawBoardPiece = function (atPos, color, drawnAtPos){
         var baseX = boardPoints[atPos].x,
             baseY = boardPoints[atPos].y,
+            pieceSideWidth = 15,
+            pieceBottomWidth = 10,
+            pieceSeperationLength = 50,
             alignment = boardPoints[atPos].alignment;
 
         if(alignment==='horizontal' && drawnAtPos>0){
-            baseX = baseX - (drawnAtPos)*50
+            baseX = baseX - (drawnAtPos)*pieceSeperationLength
         } else if(drawnAtPos >0){
-            baseY = baseY - (drawnAtPos)*50;
+            baseY = baseY - (drawnAtPos)*pieceSeperationLength;
         }
         ctx.beginPath();
-        ctx.moveTo(baseX-20,baseY+30);
-        ctx.lineTo(baseX, baseY-30);
-        ctx.lineTo(baseX+20,baseY+30);
-        ctx.lineTo(baseX-20,baseY+30);
+        ctx.moveTo(baseX-pieceBottomWidth,baseY+pieceSideWidth);
+        ctx.lineTo(baseX, baseY-pieceSideWidth);
+        ctx.lineTo(baseX+pieceBottomWidth,baseY+pieceSideWidth);
+        ctx.lineTo(baseX-pieceBottomWidth,baseY+pieceSideWidth);
         ctx.lineJoin = 'miter';
         ctx.strokeStyle = color;
         ctx.stroke();
@@ -133,6 +136,9 @@ $(function(){
         moveButton = $('#move-button'),
         questionButton = $('#question-button'),
         startButton = $('#start-button'),
+        turnBasedToggle = $('#turnBasedLabel'),
+        raceToggle = $('#raceLabel'),
+        gameType = 'turnBased',
         playerPos = 0,
         players = [],
         myColor = '',
@@ -219,10 +225,13 @@ $(function(){
        updatePositions();
     });
 
-    socket.on('gameStarted', function(data) {
+    socket.on('gameStarted', function(data, gameTypeServer) {
         console.log("Game Started");
+        gameType = gameTypeServer;
+        if(gameType == "turnBased"){
+            questionButton.prop("disabled", true);
+        }
         moveButton.prop("disabled", true);
-        questionButton.prop("disabled", true);
         startButton.prop("disabled", true);
         gameStarted = true;
         players = data;
@@ -230,6 +239,7 @@ $(function(){
         socket.emit('ready',{
             'player' : playerId
         })
+        console.log(gameType);
     });
 
     socket.on('startTurn', function() {
@@ -267,12 +277,25 @@ $(function(){
        });
     });
 
+    turnBasedToggle.on('click', function() {
+        gameType = 'turnBased';
+        console.log(gameType);
+    });
+
+    raceToggle.on('click', function() {
+        gameType = 'race';
+        console.log(gameType);
+    });
+
     startButton.on('click', function(){
         socket.emit('startGame',{
-            'player' : playerId
+            'player' : playerId,
+            'gameType': gameType
         });
     });
 
+    $('.btn-group').button();
+    $('#turnBasedLabel').addClass("active");
 
     socket.emit('newPlayer', {
         'player' : playerId

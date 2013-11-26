@@ -20,6 +20,11 @@ html
         Question!
       button#start-button(type="button" class="btn btn-default").
         Start Game
+    .btn-group(data-toggle="buttons")
+      label(class="btn btn-primary" id="turnBasedLabel") Turn Based
+        input(type="radio" name="GameOptions" id="turnBased")
+      label(class="btn btn-primary" id="raceLabel") Race
+        input(type="radio" name="GameOptions" id="race")
     #image-container
       img#boardPiece(src="download.jpg")
 

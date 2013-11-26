@@ -19,9 +19,11 @@ function Player(pos, identifier, color, socketId){
     this.id = identifier;
     this.socketId = socketId;
     this.winner = false;
+    this.ready = false;
 }
 var players = [],
     colors = ['red','blue','yellow','green'],
+    gameType = "turnBased",
     idHasTurn = 0;
     colorPointer = 0;
 
@@ -84,24 +86,41 @@ io.sockets.on('connection', function(socket){
     });
 
     socket.on('startGame', function(data) {
+        gameType = data.gameType;
         for(i = 0; i < players.length; i++){
             players[i].position = 0;
             players[i].winner = false;
+            players[i].ready = false;
         }
-        io.sockets.emit('gameStarted',players);
+        io.sockets.emit('gameStarted',players, gameType);
         console.log("game Started");
         for (var i = 0; i < players.length; i++) {
             if (data.player === players[i].id) {
                 idHasTurn = players[i].id;
-            };
-        };
+            }
+        }
 
     });
 
     socket.on('ready', function(data){
-       if(data.player == idHasTurn){
-           socket.emit("startTurn");
-       }
+        playersReady = 0;
+        for (var i = 0; i < players.length; i++) {
+            if(players[i].socketId == socket.id){
+                players[i].ready = true;
+            }
+        }
+        for (var j = 0; j < players.length; j++) {
+            if(players[j].ready){
+                playersReady++;
+            }
+        }
+        if(playersReady >= players.length && gameType == 'turnBased'){
+            for (i = 0; i < players.length; i++) {
+                if(players[i].id == idHasTurn){
+                    io.sockets.socket(players[i].socketId).emit('startTurn');
+                }
+            }
+        }
     });
 
     socket.on('disconnect', function(){
@@ -117,13 +136,15 @@ io.sockets.on('connection', function(socket){
 
     socket.on('turnEnded', function(data) {
         console.log("Player " + data.player + " ended turn");
-        for (var i = 0; i < players.length; i++) {
-            if (players[i].id === data.player) {
-                console.log("Asked player " + (i+1)%players.length + " to start turn");
-                if(!players[i].winner){
-                    io.sockets.socket(players[(i+1)%players.length].socketId).emit('startTurn');
+        if(gameType == "turnBased"){
+            for (var i = 0; i < players.length; i++) {
+                if (players[i].id === data.player) {
+                    console.log("Asked player " + (i+1)%players.length + " to start turn");
+                    if(!players[i].winner){
+                        io.sockets.socket(players[(i+1)%players.length].socketId).emit('startTurn');
+                    }
                 }
-            };
-        };
-    });
+            }
+        }
+    })
 });
