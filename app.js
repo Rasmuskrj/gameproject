@@ -3,6 +3,8 @@ var app = express();
 var $ = require('jquery');
 var port = 3700;
 
+var database = require("./mysql.js");
+
 app.set('views', __dirname + '/tpl');
 app.set('view engine', "jade");
 app.engine('jade', require('jade').__express);
@@ -11,6 +13,7 @@ app.get("/", function(req, res) {
 });
 
 app.use(express.static(__dirname + '/public'));
+database.connect();
 var io = require('socket.io').listen(app.listen(port));
 io.set('log level', 0);
 function Player(pos, identifier, color, socketId){
@@ -24,7 +27,7 @@ function Player(pos, identifier, color, socketId){
 var players = [],
     colors = ['red','blue','yellow','green'],
     gameType = "turnBased",
-    idHasTurn = 0;
+    idHasTurn = 0,
     colorPointer = 0;
 
 function addPlayer(pos, identifier, color, socketId) {
@@ -32,27 +35,50 @@ function addPlayer(pos, identifier, color, socketId) {
     players.push(adder);
 }
 
-function getQuestion(){
-
-    var question = {
-        title: 'World War II',
-        question: 'Which year did World War II start?',
-        answers: {
-            first: {
-                label: '1938',
-                correct: false
-            },
-            second: {
-                label: '1939',
-                correct: true
-            },
-            third: {
-                label: '1940',
-                correct: false
-            }
+function getQuestion(callback){
+    database.getQuestion('historie',function(questionObj){
+        console.log(questionObj);
+        var question = {
+            title: questionObj.subcategory,
+            question: questionObj.question,
+            options: []
         }
-    };
-    return question;
+        var answers = questionObj.answer.split(",");
+        for(var i = 0; i < answers.length; i++){
+            question.options.push({label : answers[i], correct : true});
+        }
+        var posibles = questionObj.possibilities.split(",");
+        for(i = 0; i < posibles.length; i++){
+            question.options.push({label : posibles[i], correct : false});
+        }
+        console.log(posibles);
+        shuffle(question.options);
+        callback(question);
+    });
+
+
+}
+
+function shuffle(array) {
+    var currentIndex = array.length
+        , temporaryValue
+        , randomIndex
+        ;
+
+    // While there remain elements to shuffle...
+    while (0 !== currentIndex) {
+
+        // Pick a remaining element...
+        randomIndex = Math.floor(Math.random() * currentIndex);
+        currentIndex -= 1;
+
+        // And swap it with the current element.
+        temporaryValue = array[currentIndex];
+        array[currentIndex] = array[randomIndex];
+        array[randomIndex] = temporaryValue;
+    }
+
+    return array;
 }
 
 io.sockets.on('connection', function(socket){
@@ -66,7 +92,7 @@ io.sockets.on('connection', function(socket){
 
     socket.on('playerMoved', function(data){
         for(var i=0;i<players.length;i++){
-            if(players[i].id==data.player){
+            if(players[i].socketId==socket.id){
                 players[i].position = (players[i].position + 1)%8;
                 if(players[i].position == 0){
                     players[i].winner = true;
@@ -81,8 +107,9 @@ io.sockets.on('connection', function(socket){
     });
 
     socket.on('question', function(data){
-        var question = getQuestion();
-        socket.emit('questionResponse', question);
+       getQuestion(function(question){
+           socket.emit('questionResponse', question);
+       });
     });
 
     socket.on('startGame', function(data) {
@@ -95,8 +122,8 @@ io.sockets.on('connection', function(socket){
         io.sockets.emit('gameStarted',players, gameType);
         console.log("game Started");
         for (var i = 0; i < players.length; i++) {
-            if (data.player === players[i].id) {
-                idHasTurn = players[i].id;
+            if (socket.id === players[i].socketId) {
+                idHasTurn = players[i].socketId;
             }
         }
 
@@ -116,7 +143,7 @@ io.sockets.on('connection', function(socket){
         }
         if(playersReady >= players.length && gameType == 'turnBased'){
             for (i = 0; i < players.length; i++) {
-                if(players[i].id == idHasTurn){
+                if(players[i].socketId == idHasTurn){
                     io.sockets.socket(players[i].socketId).emit('startTurn');
                 }
             }
@@ -138,7 +165,7 @@ io.sockets.on('connection', function(socket){
         console.log("Player " + data.player + " ended turn");
         if(gameType == "turnBased"){
             for (var i = 0; i < players.length; i++) {
-                if (players[i].id === data.player) {
+                if (players[i].socketId === socket.id) {
                     console.log("Asked player " + (i+1)%players.length + " to start turn");
                     if(!players[i].winner){
                         io.sockets.socket(players[(i+1)%players.length].socketId).emit('startTurn');
@@ -148,3 +175,5 @@ io.sockets.on('connection', function(socket){
         }
     })
 });
+
+

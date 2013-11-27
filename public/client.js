@@ -9,8 +9,8 @@ function Board(){
         gamePathWidth = 100,
         innerRectWidth = rectWidth - gamePathWidth,
         innerRectHeight = rectHeight - gamePathWidth,
-        colors = ['red','blue','yellow','black'],
         colorKey = 0,
+        gameStarted = false,
         players = {},
         boardPiece = new Image(),
         boardPoints = [
@@ -56,6 +56,10 @@ function Board(){
             }
         ];
 
+    this.setGameStarted = function(state){
+        gameStarted = state;
+    };
+
     this.getBoardPointsArr = function(){
         return boardPoints;
     };
@@ -90,7 +94,12 @@ function Board(){
         this.drawLine(midx,midy+(rectHeight/2),midx,midy+(innerRectHeight/2));
         this.drawLine(midx-(rectWidth/2),midy+(rectHeight/2),midx-(innerRectWidth/2),midy+(innerRectHeight/2));
         this.drawLine(midx-(rectWidth/2),midy,midx-(innerRectWidth/2),midy);
-        console.log("drawing board");
+
+        if(gameStarted){
+            ctx.font = "28px Arial";
+            ctx.strokeStyle = 'green';
+            ctx.strokeText("Game Started",midx-100,midy);
+        }
     };
 
     this.drawBoardPiece = function (atPos, color, drawnAtPos){
@@ -169,29 +178,30 @@ $(function(){
         });}
     }
 
-    socket.on('newPlayer',function(data){
-        players = data;
-        console.log("newPlayer called this" + players);
-        updatePositions();
-
-    });
-    socket.on('playerMoved',function(data){
-        players = data;
-        updatePositions();
-    });
-
-    socket.on('init',function(data){
-       players = data;
-       playerId = data.length-1;
-       myColor = data[playerId].color;
-       playerPos = data[playerId].position;
-       console.log("init called this" + players);
-       updatePositions();
-    });
-
-    socket.on('questionResponse',function(data){
-        console.log(data);
-        bootbox.dialog({
+    function showQuestion(data){
+        var num = 'num';
+        bootboxObj = {
+            title   : data.title,
+            message : data.question,
+            buttons : {}
+        };
+        for(var i = 0; i < data.options.length; i++){
+            bootboxObj.buttons[num + i] = {};
+            bootboxObj.buttons[num + i].label = data.options[i].label;
+            bootboxObj.buttons[num + i].className = "btn-primary";
+            if(data.options[i].correct){
+                bootboxObj.buttons[num + i].callback = function(){
+                    checkAnswer(true);
+                }
+            } else {
+                bootboxObj.buttons[num + i].callback = function(){
+                    checkAnswer(false);
+                }
+            }
+        }
+        console.log(bootboxObj);
+        bootbox.dialog(bootboxObj);
+        /*bootbox.dialog({
             title: data.title,
             message: data.question,
             buttons: {
@@ -217,7 +227,32 @@ $(function(){
                     }
                 }
             }
-        });
+        });*/
+    }
+
+    socket.on('newPlayer',function(data){
+        players = data;
+        console.log("newPlayer called this" + players);
+        updatePositions();
+
+    });
+    socket.on('playerMoved',function(data){
+        players = data;
+        updatePositions();
+    });
+
+    socket.on('init',function(data){
+       players = data;
+       playerId = data.length-1;
+       myColor = data[playerId].color;
+       playerPos = data[playerId].position;
+       console.log("init called this" + players);
+       updatePositions();
+    });
+
+    socket.on('questionResponse',function(data){
+        console.log(data);
+        showQuestion(data);
     });
 
     socket.on('playerDisconnected', function(data){
@@ -228,6 +263,7 @@ $(function(){
     socket.on('gameStarted', function(data, gameTypeServer) {
         console.log("Game Started");
         gameType = gameTypeServer;
+        board.setGameStarted(true);
         if(gameType == "turnBased"){
             questionButton.prop("disabled", true);
         }
@@ -255,6 +291,7 @@ $(function(){
         moveButton.prop("disabled", false);
         questionButton.prop("disabled", false);
         startButton.prop("disabled", false);
+        board.setGameStarted(false);
     });
 
     socket.on('playerLost', function() {
@@ -263,6 +300,7 @@ $(function(){
         moveButton.prop("disabled", false);
         questionButton.prop("disabled", false);
         startButton.prop("disabled", false);
+        board.setGameStarted(false);
     });
 
     moveButton.on('click',function(){
@@ -295,7 +333,7 @@ $(function(){
     });
 
     $('.btn-group').button();
-    $('#turnBasedLabel').addClass("active");
+    turnBasedToggle.addClass("active");
 
     socket.emit('newPlayer', {
         'player' : playerId
