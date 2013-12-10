@@ -147,6 +147,7 @@ $(function(){
         startButton = $('#start-button'),
         turnBasedToggle = $('#turnBasedLabel'),
         raceToggle = $('#raceLabel'),
+        gamehtml = $('#gamehtml'),
         gameType = 'turnBased',
         playerPos = 0,
         players = [],
@@ -338,6 +339,8 @@ $(function(){
     socket.emit('newPlayer', {
         'player' : playerId
     });
+
+    gamehtml.hide();
 
     //ctx.clearRect(0,0,canvas[0].width,canvas[0].height)
     //drawBoardPiece(boardPoints[0].x,boardPoints[0].y);

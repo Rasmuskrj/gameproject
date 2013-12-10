@@ -10,21 +10,25 @@ html
     script(src="/socket.io/socket.io.js")
     script(src="/client.js")
   body(style="width: 100%")
-    h1#header Welcome to the game
-    #canvas-container
-      canvas#board(height="800" width="1200")
-    .btn-group
-      button#move-button(type="button" class="btn btn-default").
-        move
-      button#question-button(type="button" class="btn btn-default").
-        Question!
-      button#start-button(type="button" class="btn btn-default").
-        Start Game
-    .btn-group(data-toggle="buttons")
-      label(class="btn btn-primary" id="turnBasedLabel") Turn Based
-        input(type="radio" name="GameOptions" id="turnBased")
-      label(class="btn btn-primary" id="raceLabel") Race
-        input(type="radio" name="GameOptions" id="race")
-    #image-container
-      img#boardPiece(src="download.jpg")
+    #gamehtml
+      h1#header Welcome to the game
+      #canvas-container
+        canvas#board(height="800" width="1200")
+      .btn-group
+        button#move-button(type="button" class="btn btn-default").
+          move
+        button#question-button(type="button" class="btn btn-default").
+          Question!
+        button#start-button(type="button" class="btn btn-default").
+          Start Game
+      .btn-group(data-toggle="buttons")
+        label(class="btn btn-primary" id="turnBasedLabel") Turn Based
+          input(type="radio" name="GameOptions" id="turnBased")
+        label(class="btn btn-primary" id="raceLabel") Race
+          input(type="radio" name="GameOptions" id="race")
+      #image-container
+        img#boardPiece(src="download.jpg")
+    #lobbyhtml
+      h1#lobbyheader Find 1 or more people to play with
+      select multiple
 

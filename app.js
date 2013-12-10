@@ -12,6 +12,7 @@ app.get("/", function(req, res) {
     res.render("home");
 });
 
+
 app.use(express.static(__dirname + '/public'));
 database.connect();
 var io = require('socket.io').listen(app.listen(port));
