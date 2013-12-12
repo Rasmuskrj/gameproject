@@ -7,8 +7,38 @@
     display: none;
 }
 
+#enterGame-prompt {
+    width: 400px;
+}
+
 canvas {
     display: inline;
     width: 1200px;
     heigh: 800px;
+}
+
+.modal {
+    display:    none;
+    position:   fixed;
+    z-index:    999;
+    top:        0;
+    left:       0;
+    height:     100%;
+    width:      100%;
+    background: rgba( 255, 255, 255, .8 )
+    url('../loading.gif')
+    50% 50%
+    no-repeat;
+    background-size: 5%;
+}
+
+#loadingBox {
+    position: fixed;
+    z-index: 1000;
+    width: 400px;
+    left: 40%;
+}
+
+body.loading .modal {
+    display: block;
 }

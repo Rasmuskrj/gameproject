@@ -140,23 +140,32 @@ $(function(){
         $('header').innerHTML = "Browser does not support canvas";
     }
 
-
+    //variables
     var socket = io.connect(window.location.hostname),
         moveButton = $('#move-button'),
         questionButton = $('#question-button'),
         startButton = $('#start-button'),
+        enterGameButton = $('#enterGame-button'),
         turnBasedToggle = $('#turnBasedLabel'),
+        enterGamePrompt = $('#enterGame-prompt'),
         raceToggle = $('#raceLabel'),
         gamehtml = $('#gamehtml'),
+        lobbyhtml = $('#lobbyhtml'),
+        uiblock = $('#cover'),
+        loadingBox = $('#loadingBox'),
+        chooseHandlehtml = $('#chooseHandle'),
+        usernameInput = $('#username'),
+        selectPlayers = $('#select-players'),
         gameType = 'turnBased',
-        playerPos = 0,
+        programState = '',
+        myUsername = '',
         players = [],
-        myColor = '',
-        answer = false,
+        player = {},
         gameStarted = false;
         playerId = Math.round($.now()*Math.random());
         board = new Board;
 
+    //functions
     function updatePositions(){
         board.clearboard();
         board.drawBoard();
@@ -231,10 +240,36 @@ $(function(){
         });*/
     }
 
+    function updatePlayerSelector(){
+        selectPlayers.empty();
+        for(var i=0; i < players.length; i++){
+            if(players[i].socketId != player.socketId){
+                selectPlayers.append('<option value="' + players[i].socketId + '">' + players[i].username+ '</option>')
+            }
+        }
+    }
+
+    function waitForResponse(){
+        $('body').addClass("loading");
+    }
+
+    function responseRecieved(){
+        $('body').removeClass("loading");
+    }
+
+    function enterGameMessage(header, body){
+        $('.panel-heading',enterGamePrompt).empty().append(header);
+        $('.panel-body',enterGamePrompt).empty().append(body);
+    }
+
+    //socket events
     socket.on('newPlayer',function(data){
         players = data;
         console.log("newPlayer called this" + players);
         updatePositions();
+        if(programState === 'lobby') {
+            updatePlayerSelector();
+        }
 
     });
     socket.on('playerMoved',function(data){
@@ -244,9 +279,7 @@ $(function(){
 
     socket.on('init',function(data){
        players = data;
-       playerId = data.length-1;
-       myColor = data[playerId].color;
-       playerPos = data[playerId].position;
+       player = players[players.length - 1];
        console.log("init called this" + players);
        updatePositions();
     });
@@ -286,6 +319,10 @@ $(function(){
         });
     });
 
+    socket.on('enterGameRequest',function() {
+
+    });
+
     socket.on('playerWon',function() {
         bootbox.alert("You won! Congratulations!");
         gameStarted = false;
@@ -304,6 +341,57 @@ $(function(){
         board.setGameStarted(false);
     });
 
+    socket.on('playerList', function(players){
+        this.players = players;
+        updatePlayerSelector();
+    });
+
+    socket.on('promptEnterGame', function(id){
+        var promptingPlayerName;
+        programState = 'prompted';
+        for(var i=0; i < players.length; i++){
+            if(id === players[i].socketId){
+                promptingPlayerName = players[i].username;
+            }
+        }
+        enterGamePrompt.show();
+        enterGameMessage("Player " + promptingPlayerName + " wants to start a game with you", "Do you want to enter enter a new game with " + promptingPlayerName + "? <br>" + "<div class='btn-group'><button id='confirmEnterGame-button' type='button' class='btn btn-default'>Yes</button><button id='denyEnterGame-button' type='button' class='btn btn-default'>No</button></div>");
+        $('#confirmEnterGame-button').on('click', function(){
+            console.log("it's confirmed!");
+            socket.emit('confirmEnterGame');
+        });
+        $('#denyEnterGame-button').on('click', function(){
+            socket.emit('playerDenied', id);
+        });
+    });
+
+    socket.on('playerBusy', function(player){
+        enterGamePrompt.show();
+        $('.panel-heading',enterGamePrompt).empty().append("Player " + player.username + " is busy");
+        $('.panel-body',enterGamePrompt).empty().append("Try to find a player that is not busy.");
+    });
+
+    socket.on('waitForResponse', function(){
+        waitForResponse();
+        programState = 'waiting';
+    });
+
+    socket.on('abortGame', function(){
+        console.log("it's over");
+        if(programState === 'prompted') {
+            enterGamePrompt.hide();
+        } else if(programState === 'waiting'){
+            responseRecieved();
+            enterGameMessage("Game Cancelled", "Someone turned down your request");
+        }
+        programState = 'lobby';
+    });
+
+    socket.on('gameAmountOverflow', function(){
+        enterGameMessage("Cannot start another game", "you cannot initiate more than one game at a time");
+    });
+
+    //input events
     moveButton.on('click',function(){
         socket.emit('playerMoved',{
             'player' : playerId
@@ -333,14 +421,38 @@ $(function(){
         });
     });
 
-    $('.btn-group').button();
-    turnBasedToggle.addClass("active");
-
-    socket.emit('newPlayer', {
-        'player' : playerId
+    enterGameButton.on('click', function(){
+        if(programState === "lobby"){
+            console.log(selectPlayers.val());
+            socket.emit('requestEnterGame',selectPlayers.val());
+        }
     });
 
+    $('.btn-group').button();
+    turnBasedToggle.addClass("active");
     gamehtml.hide();
+    lobbyhtml.hide();
+    programState = 'welcome';
+    usernameInput.keypress(function(e){
+        if(e.keyCode == 13){
+            myUsername = usernameInput.val();
+            e.preventDefault();
+            e.stopPropagation();
+            chooseHandlehtml.hide();
+            lobbyhtml.show();
+            enterGamePrompt.hide();
+            socket.emit('newPlayer', {
+                'playerName' : myUsername
+            });
+            socket.emit("queryPlayerList");
+            programState = 'lobby';
+        }
+
+    });
+
+
+
+
 
     //ctx.clearRect(0,0,canvas[0].width,canvas[0].height)
     //drawBoardPiece(boardPoints[0].x,boardPoints[0].y);

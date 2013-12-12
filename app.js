@@ -5,40 +5,59 @@ var port = 3700;
 
 var database = require("./mysql.js");
 
-app.set('views', __dirname + '/tpl');
+/*app.set('views', __dirname + '/tpl');
 app.set('view engine', "jade");
 app.engine('jade', require('jade').__express);
 app.get("/", function(req, res) {
     res.render("home");
-});
-
+});*/
 
 app.use(express.static(__dirname + '/public'));
+app.get('/', function(req, res) {
+    res.sendfile(__dirname + '/public/layout.html')
+});
 database.connect();
 var io = require('socket.io').listen(app.listen(port));
 io.set('log level', 0);
-function Player(pos, identifier, color, socketId){
+function Player(pos, identifier, color, socketId, username){
     this.position = pos;
     this.color = color;
     this.id = identifier;
     this.socketId = socketId;
     this.winner = false;
     this.ready = false;
+    this.idle = true;
+    this.waitingToEnter = false;
+    this.readyToEnter = false;
+    this.username = username;
+}
+
+function Game(gameplayers, initiator){
+    //TODO create game identifier, and use this to find games. Also tie identifier to client object in a many to many relation
+    this.players = gameplayers;
+    this.entered = false;
+    this.started = false;
+    this.initiator = initiator
 }
 var players = [],
+    games = [],
     colors = ['red','blue','yellow','green'],
     gameType = "turnBased",
     idHasTurn = 0,
     colorPointer = 0;
 
-function addPlayer(pos, identifier, color, socketId) {
-    var adder = new Player(pos, identifier, color, socketId);
+function addPlayer(pos, identifier, color, socketId, username) {
+    var adder = new Player(pos, identifier, color, socketId, username);
     players.push(adder);
+}
+
+function addGame(gameplayers, initiator){
+    var adder = new Game(gameplayers, initiator);
+    games.push(adder);
 }
 
 function getQuestion(callback){
     database.getQuestion('historie',function(questionObj){
-        console.log(questionObj);
         var question = {
             title: questionObj.subcategory,
             question: questionObj.question,
@@ -52,7 +71,6 @@ function getQuestion(callback){
         for(i = 0; i < posibles.length; i++){
             question.options.push({label : posibles[i], correct : false});
         }
-        console.log(posibles);
         shuffle(question.options);
         callback(question);
     });
@@ -84,11 +102,10 @@ function shuffle(array) {
 
 io.sockets.on('connection', function(socket){
     socket.on('newPlayer', function(data){
-       addPlayer(0,players.length, colors[colorPointer++],socket.id);
+       addPlayer(0,players.length, colors[colorPointer++],socket.id, data.playerName);
        socket.broadcast.emit('newPlayer',players);
        socket.emit('init', players);
        console.log("player joined");
-       console.log(players);
     });
 
     socket.on('playerMoved', function(data){
@@ -159,8 +176,7 @@ io.sockets.on('connection', function(socket){
             }
         }
         socket.broadcast.emit('playerDisconnected', players);
-        console.log(players);
-    })
+    });
 
     socket.on('turnEnded', function(data) {
         console.log("Player " + data.player + " ended turn");
@@ -174,7 +190,76 @@ io.sockets.on('connection', function(socket){
                 }
             }
         }
-    })
+    });
+
+    socket.on('queryPlayerList', function(){
+       socket.emit('playerList', players)
+    });
+
+    socket.on('requestEnterGame',function(selectedPlayers){
+        var requestSent = false;
+        var involvedPlayers = [];
+        for(var h=0; h < games.length; h++){
+            if(games[h].initiator.socketId === socket.id){
+                socket.emit("gameAmountOverflow");
+                return
+            }
+        }
+        if(selectedPlayers != null && selectedPlayers.length > 0){
+            for(var i=0; i<selectedPlayers.length; i++){
+                for(var j=0; j < players.length; j++){
+                    if(selectedPlayers[i] === players[j].socketId){
+                        if(players[j].idle){
+                            socket.emit('waitForResponse');
+                            io.sockets.socket(players[j].socketId).emit("promptEnterGame", socket.id);
+                            requestSent = true;
+                            involvedPlayers.push(players[j]);
+                        } else {
+                            socket.emit('playerBusy', players[j]);
+                            requestSent = false;
+                        }
+                    }
+                }
+            }
+            for(var k=0; k < players.length; k++){
+                if(socket.id === players[k].socketId && requestSent){
+                    players[k].idle = false;
+                    involvedPlayers.push(players[k]);
+                    addGame(involvedPlayers,players[k]);
+                }
+            }
+        }
+    });
+
+    socket.on('playerDenied', function(initiatorId){
+        for(var i=0; i < games.length; i++){
+            if(games[i].initiator.socketId === initiatorId){
+                for(var j=0; j < games[i].players.length; j++){
+                    console.log("someone pressed no");
+                    io.sockets.socket(games[i].players[j].socketId).emit("abortGame");
+                }
+                games.splice(i,1);
+                console.log(games);
+            }
+        }
+        for(var k=0; k < players.length; k++){
+            if(initiatorId === players[k].socketId){
+                players[k].idle = true;
+            }
+        }
+    });
+
+    socket.on('confirmEnterGame', function(){
+        var currentGame = null;
+        for(var i=0; i < games.length; i++){
+            for(var j=0; j < games[i].players.length; j++){
+                if(games[i].players[j].socketId === socket.id){
+                    currentGame = games[i];
+                }
+            }
+        }
+    });
+
 });
 
 

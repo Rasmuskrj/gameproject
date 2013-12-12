@@ -26,9 +26,14 @@ html
           input(type="radio" name="GameOptions" id="turnBased")
         label(class="btn btn-primary" id="raceLabel") Race
           input(type="radio" name="GameOptions" id="race")
-      #image-container
-        img#boardPiece(src="download.jpg")
     #lobbyhtml
       h1#lobbyheader Find 1 or more people to play with
-      select multiple
+      select#select-players(multiple="multiple")
+      .btn-group
+        button#enterGame-button(type="button" class="btn btn-default") Enter Game
+    #chooseHandle
+      h1 Please choose a username
+      .input-group(style="width: 400px")
+        span.input-group-addon Enter Username
+        input#username(type"text" class="form-control" placeholder="submit with enter...")
 

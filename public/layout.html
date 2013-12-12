@@ -1,0 +1,57 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Quiz game</title>
+    <link href="/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/styles.css">
+    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+    <script src="/bootstrap/js/bootstrap.min.js"></script>
+    <script src="/bootstrap/js/bootbox.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/client.js"></script>
+</head>
+<body style="width: 100%">
+<div id="gamehtml">
+    <h1 id="header">Welcome to the game</h1>
+    <div id="canvas-container">
+        <canvas id="board" height="800" width="1200"></canvas>
+    </div>
+    <div class="btn-group">
+        <button id="move-button" type="button" class="btn btn-default">move</button>
+        <button id="question-button" type="button" class="btn btn-default">Question!</button>
+        <button id="start-button" type="button" class="btn btn-default">Start Game</button>
+    </div>
+    <div data-toggle="buttons" class="btn-group">
+        <label id="turnBasedLabel" class="btn btn-primary">Turn Based<input type="radio" name="GameOptions" id="turnBased"></label>
+        <label id="raceLabel" class="btn btn-primary">Race<input type="radio" name="GameOptions" id="race"></label>
+    </div>
+</div>
+<div id="lobbyhtml">
+    <h1 id="lobbyheader">Find 1 or more people to play with</h1>
+    <select id="select-players" multiple="multiple"></select>
+    <div class="btn-group">
+        <button id="enterGame-button" type="button" class="btn btn-default">Enter Game</button>
+    </div>
+    <div id="enterGame-prompt" class="panel panel-default">
+        <div class="panel-heading"></div>
+        <div class="panel-body"></div>
+    </div>
+</div>
+<div id="chooseHandle">
+    <h1>Please choose a username</h1>
+    <div style="width: 400px" class="input-group">
+        <span class="input-group-addon">Enter Username</span><input id="username" type="text" placeholder="submit with enter..." class="form-control">
+    </div>
+</div>
+<div id="cover" class="modal">
+    <div id="loadingBox" class="panel panel-default">
+        <div class="panel-body"><p>Waiting for response</p>
+            <div class="btn-group">
+                <button id="abortEnterGame-button" type="button" class="btn btn-default">Abort</button>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>
