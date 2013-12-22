@@ -146,6 +146,7 @@ $(function(){
         questionButton = $('#question-button'),
         startButton = $('#start-button'),
         enterGameButton = $('#enterGame-button'),
+        abortEnterGameButton = $('#abortEnterGame-button'),
         turnBasedToggle = $('#turnBasedLabel'),
         enterGamePrompt = $('#enterGame-prompt'),
         raceToggle = $('#raceLabel'),
@@ -161,6 +162,7 @@ $(function(){
         myUsername = '',
         players = [],
         player = {},
+        myGame = {},
         gameStarted = false;
         playerId = Math.round($.now()*Math.random());
         board = new Board;
@@ -173,19 +175,17 @@ $(function(){
         for(var i=0;i<board.getBoardPointsArr().length;i++){
             drawnAtPos[i] = 0;
         }
-        for(var k = 0; k<players.length;k++){
-            board.drawBoardPiece(players[k].position,players[k].color,drawnAtPos[players[k].position]);
-            drawnAtPos[players[k].position]++;
+        for(var k = 0; k<myGame.players.length;k++){
+            board.drawBoardPiece(myGame.players[k].position,myGame.players[k].color,drawnAtPos[myGame.players[k].position]);
+            drawnAtPos[myGame.players[k].position]++;
         }
     }
 
     function checkAnswer(isCorrect){
-        if(isCorrect){socket.emit('playerMoved',{player: playerId})}
+        if(isCorrect){socket.emit('playerMoved', myGame)}
         else{bootbox.alert("Sorry, that's wrong!")}
         console.log(gameStarted);
-        if(gameStarted){socket.emit('turnEnded',{
-            'player' : playerId
-        });}
+        if(gameStarted){socket.emit('turnEnded', myGame);}
     }
 
     function showQuestion(data){
@@ -200,6 +200,7 @@ $(function(){
             bootboxObj.buttons[num + i].label = data.options[i].label;
             bootboxObj.buttons[num + i].className = "btn-primary";
             if(data.options[i].correct){
+                //anonymous function not needed? check
                 bootboxObj.buttons[num + i].callback = function(){
                     checkAnswer(true);
                 }
@@ -266,22 +267,27 @@ $(function(){
     socket.on('newPlayer',function(data){
         players = data;
         console.log("newPlayer called this" + players);
-        updatePositions();
+        if(programState === 'game'){
+            updatePositions();
+        }
         if(programState === 'lobby') {
             updatePlayerSelector();
         }
 
     });
     socket.on('playerMoved',function(data){
-        players = data;
+        myGame = data;
         updatePositions();
     });
 
     socket.on('init',function(data){
        players = data;
+       //this is not good
        player = players[players.length - 1];
        console.log("init called this" + players);
-       updatePositions();
+       if(programState === 'game'){
+            updatePositions();
+        }
     });
 
     socket.on('questionResponse',function(data){
@@ -289,12 +295,24 @@ $(function(){
         showQuestion(data);
     });
 
-    socket.on('playerDisconnected', function(data){
-       players = data;
-       updatePositions();
+    socket.on('updatePlayerSelector', function(serverPlayers){
+        players = serverPlayers;
+        updatePlayerSelector();
     });
 
-    socket.on('gameStarted', function(data, gameTypeServer) {
+    socket.on('playerDisconnected', function(data, game){
+       players = data;
+       updatePlayerSelector();
+       if(game != null) {
+            if(game.id == myGame.id && programState === "game"){
+                myGame = game;
+                updatePositions();
+            }
+        }
+
+    });
+
+    socket.on('gameStarted', function(game, gameTypeServer) {
         console.log("Game Started");
         gameType = gameTypeServer;
         board.setGameStarted(true);
@@ -304,11 +322,9 @@ $(function(){
         moveButton.prop("disabled", true);
         startButton.prop("disabled", true);
         gameStarted = true;
-        players = data;
+        myGame = game;
         updatePositions();
-        socket.emit('ready',{
-            'player' : playerId
-        })
+        socket.emit('ready',myGame);
         console.log(gameType);
     });
 
@@ -371,18 +387,25 @@ $(function(){
         $('.panel-body',enterGamePrompt).empty().append("Try to find a player that is not busy.");
     });
 
-    socket.on('waitForResponse', function(){
+    socket.on('waitForResponse', function(game){
         waitForResponse();
         programState = 'waiting';
+        myGame = game;
     });
 
-    socket.on('abortGame', function(){
+    socket.on('abortGame', function(aborterId){
         console.log("it's over");
+        console.log("sessionid: " + socket.socket.sessionid + ", aborterId: " + aborterId);
         if(programState === 'prompted') {
             enterGamePrompt.hide();
         } else if(programState === 'waiting'){
             responseRecieved();
-            enterGameMessage("Game Cancelled", "Someone turned down your request");
+            if(socket.socket.sessionid === aborterId){
+                enterGamePrompt.hide();
+            } else {
+                enterGamePrompt.show();
+                enterGameMessage("Game Cancelled", "Someone turned down your request");    
+            }
         }
         programState = 'lobby';
     });
@@ -391,11 +414,19 @@ $(function(){
         enterGameMessage("Cannot start another game", "you cannot initiate more than one game at a time");
     });
 
+    socket.on('enterGame', function (game) {
+        console.log("Enter Game");
+        programState = 'game';
+        lobbyhtml.hide();
+        uiblock.hide();
+        gamehtml.show();
+        myGame = game;
+        updatePositions();
+    });   
+
     //input events
     moveButton.on('click',function(){
-        socket.emit('playerMoved',{
-            'player' : playerId
-        });
+        socket.emit('playerMoved',myGame);
     });
 
     questionButton.on('click', function(){
@@ -417,6 +448,7 @@ $(function(){
     startButton.on('click', function(){
         socket.emit('startGame',{
             'player' : playerId,
+            'game'  : myGame,
             'gameType': gameType
         });
     });
@@ -425,6 +457,13 @@ $(function(){
         if(programState === "lobby"){
             console.log(selectPlayers.val());
             socket.emit('requestEnterGame',selectPlayers.val());
+        }
+    });
+
+    abortEnterGameButton.on('click', function() {
+        console.log(socket.socket.sessionid);
+        if(programState === "waiting"){
+            socket.emit('playerDenied', myGame.initiator.socketId);
         }
     });
 

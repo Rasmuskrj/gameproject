@@ -17,7 +17,7 @@ canvas {
     heigh: 800px;
 }
 
-.modal {
+.myModal {
     display:    none;
     position:   fixed;
     z-index:    999;
@@ -39,6 +39,6 @@ canvas {
     left: 40%;
 }
 
-body.loading .modal {
+body.loading .myModal {
     display: block;
 }
