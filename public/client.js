@@ -1,4 +1,143 @@
-function Board(){
+function Board(categoriesArr, newGameSession){
+    var canvas = $('#board'),
+        ctx = canvas[0].getContext("2d"),
+        midx = canvas.width() / 2,
+        midy = canvas.height() / 2,
+        rectWidth = 550,
+        rectHeight = 550,
+        fieldSize = 50,
+        myCategoriesArr = categoriesArr,
+        colorCategoryRelations = {
+            'historie' : 'red',
+            'dansk' : 'green',
+            'engelsk' : 'yellow',
+            'naturteknik' : 'blue'
+        },
+        gameStarted = false,
+        movementPoints = 0;
+        currentMessage = '';
+        gameSession = newGameSession;
+        boardPoints = [];
+
+    this.drawBoard = function() {
+        ctx.clearRect(0,0,canvas[0].width,canvas[0].height);
+        this.drawRect(midx,midy, rectWidth, rectHeight, 'white', 'black', 6);
+        for (var i = 0; i < myCategoriesArr.length; i++) {
+            for(var j = 0; j < myCategoriesArr[i].length; j++){
+                this.drawRect(midx - (rectWidth/2) + fieldSize * i + (fieldSize/2), midy - (rectHeight/2) + fieldSize * j + (fieldSize/2), fieldSize, fieldSize, colorCategoryRelations[myCategoriesArr[i][j]], 'black', 1)
+            }
+        }
+        ctx.font = "28px Arial";
+        ctx.strokeStyle = 'black';
+        ctx.strokeText(currentMessage,midx,midy - rectHeight/2 - 100);
+    }
+
+    this.drawRect = function(centerX,centerY,width,height,fill,stroke, lineWidth){
+        ctx.beginPath();
+        ctx.rect(centerX-(width/2),centerY-(height/2),width,height);
+        ctx.fillStyle = fill;
+        ctx.fill();
+        ctx.lineWidth = lineWidth;
+        ctx.strokeStyle = stroke;
+        ctx.stroke();
+
+    }
+
+    this.drawLine = function(fromX,fromY, toX,toY, lineWidth){
+        ctx.lineWidth = lineWidth;
+        ctx.moveTo(fromX,fromY);
+        ctx.lineTo(toX,toY);
+        ctx.stroke();
+    }
+
+    this.setGameStarted = function(state){
+        gameStarted = state;
+    }
+
+    this.getBoardPointsArr = function(){
+        return boardPoints;
+    }
+
+    this.drawBoardPiece = function(atPos, color){
+        var baseX = boardPoints[atPos.x][atPos.y].x,
+            baseY = boardPoints[atPos.x][atPos.y].y,
+            pieceSideWidth = 15,
+            pieceBottomWidth = 10,
+            pieceSeperationLength = 50;
+
+
+        ctx.beginPath();
+        ctx.moveTo(baseX-pieceBottomWidth,baseY+pieceSideWidth);
+        ctx.lineTo(baseX, baseY-pieceSideWidth);
+        ctx.lineTo(baseX+pieceBottomWidth,baseY+pieceSideWidth);
+        ctx.lineTo(baseX-pieceBottomWidth,baseY+pieceSideWidth);
+        ctx.lineJoin = 'miter';
+        ctx.strokeStyle = color;
+        ctx.stroke();
+    }
+
+    this.clearboard = function() {
+        ctx.clearRect(0,0,canvas[0].width,canvas[0].height);
+    }
+
+    this.addMovementPoint = function() {
+        movementPoints++;
+    }
+
+    this.removeMovementPoint = function() {
+        movementPoints = 0;
+    }
+
+    this.setMessage = function(message){
+        currentMessage = message;
+    }
+
+    function getMousePos(canvas, event){
+        var rect = canvas[0].getBoundingClientRect();
+        return {x: event.clientX - rect.left, y: event.clientY - rect.top};
+    }
+
+    function checkMousePos(mousePos){
+        var returnObj = {x: -1, y: -1}
+        for (var i = 0; i < boardPoints.length; i++) {
+            for(var j = 0; j < boardPoints[i].length; j++){
+                if(mousePos.x > boardPoints[i][j].x - fieldSize/2 && mousePos.x < boardPoints[i][j].x + fieldSize - fieldSize/2){
+                    returnObj.x = i;
+                }
+                if(mousePos.y > boardPoints[i][j].y - fieldSize/2 && mousePos.y < boardPoints[i][j].y + fieldSize - fieldSize/2){
+                    returnObj.y = j;
+                }
+            }
+        }
+        return returnObj;
+    }
+
+    console.log(myCategoriesArr);
+    canvas.on('click', function(event){
+        var mousePos = getMousePos(canvas, event),
+            boardMousePos = checkMousePos(mousePos);
+        if(movementPoints > 0 && boardMousePos.x > -1 && boardMousePos.y > -1) {
+            gameSession.requestMove(boardMousePos);
+            console.log("click event called");
+
+        }
+        console.log("movementPoints: " + movementPoints + " positionX: " + boardMousePos.x + " positionY: " + boardMousePos.y);
+        console.log(movementPoints > 0 && boardMousePos.x > -1 && boardMousePos.y > -1);
+    });
+    for (var i = 0; i < myCategoriesArr.length; i++) {
+        boardPoints[i] = [];
+        for(var j = 0; j < myCategoriesArr[i].length; j++){
+            boardPoints[i][j] = { 
+                x : midx - (rectWidth/2) + fieldSize * i + (fieldSize/2),
+                y : midy - (rectHeight/2) + fieldSize * j + (fieldSize/2)
+            }
+        }
+    }
+
+
+}
+
+function OldBoard(){
     var doc = $(document);
     var canvas = $('#board');
     var ctx = canvas[0].getContext("2d");
@@ -83,7 +222,7 @@ function Board(){
     };
 
     this.drawBoard = function(){
-        ctx.clearRect(0,0,canvas[0].width,canvas[0].heigh);
+        ctx.clearRect(0,0,canvas[0].width,canvas[0].height);
         this.drawRect(midx,midy,rectWidth,rectHeight,'white','black');
         this.drawRect(midx,midy,innerRectWidth,innerRectHeight,'white','black');
         this.drawLine(midx-(rectWidth/2),midy-(rectHeight/2),midx-(innerRectWidth/2),midy-(innerRectHeight/2));
@@ -134,12 +273,7 @@ function Board(){
 
 }
 
-$(function(){
-    if(!('getContext' in document.createElement('canvas'))){
-        alert('Sorry, it looks like your browser does not support canvas!');
-        $('header').innerHTML = "Browser does not support canvas";
-    }
-
+function gameSession() {
     //variables
     var socket = io.connect(window.location.hostname),
         moveButton = $('#move-button'),
@@ -163,29 +297,36 @@ $(function(){
         players = [],
         player = {},
         myGame = {},
+        thisObj = this;
         gameStarted = false;
         playerId = Math.round($.now()*Math.random());
-        board = new Board;
+        board = null;
 
-    //functions
+    // private functions
     function updatePositions(){
         board.clearboard();
         board.drawBoard();
         var drawnAtPos = [];
-        for(var i=0;i<board.getBoardPointsArr().length;i++){
+        /*for(var i=0;i<board.getBoardPointsArr().length;i++){
             drawnAtPos[i] = 0;
-        }
+        }*/
         for(var k = 0; k<myGame.players.length;k++){
-            board.drawBoardPiece(myGame.players[k].position,myGame.players[k].color,drawnAtPos[myGame.players[k].position]);
-            drawnAtPos[myGame.players[k].position]++;
+            board.drawBoardPiece(myGame.players[k].position,myGame.players[k].color);
+            //drawnAtPos[myGame.players[k].position]++;
         }
     }
 
     function checkAnswer(isCorrect){
-        if(isCorrect){socket.emit('playerMoved', myGame)}
-        else{bootbox.alert("Sorry, that's wrong!")}
+        if(isCorrect){
+            board.addMovementPoint();
+            board.setMessage("Click adjescent field to move");
+            updatePositions();
+        }
+        else{
+            bootbox.alert("Sorry, that's wrong!");
+            socket.emit('turnEnded', myGame);
+        }
         console.log(gameStarted);
-        if(gameStarted){socket.emit('turnEnded', myGame);}
     }
 
     function showQuestion(data){
@@ -212,33 +353,6 @@ $(function(){
         }
         console.log(bootboxObj);
         bootbox.dialog(bootboxObj);
-        /*bootbox.dialog({
-            title: data.title,
-            message: data.question,
-            buttons: {
-                first: {
-                    label: data.answers.first.label,
-                    className: "btn-primary",
-                    callback: function(){
-                        checkAnswer(data.answers.first.correct);
-                    }
-                },
-                second: {
-                    label: data.answers.second.label,
-                    className: "btn-primary",
-                    callback: function(){
-                        checkAnswer(data.answers.second.correct);
-                    }
-                },
-                third: {
-                    label: data.answers.third.label,
-                    className: "btn-primary ",
-                    callback: function(){
-                        checkAnswer(data.answers.third.correct);
-                    }
-                }
-            }
-        });*/
     }
 
     function updatePlayerSelector(){
@@ -263,6 +377,11 @@ $(function(){
         $('.panel-body',enterGamePrompt).empty().append(body);
     }
 
+    //public funcions
+    this.requestMove = function(boardMousePos){
+        console.log("requestMove called");
+        socket.emit('requestMove', boardMousePos, myGame);
+    }
     //socket events
     socket.on('newPlayer',function(data){
         players = data;
@@ -275,8 +394,15 @@ $(function(){
         }
 
     });
-    socket.on('playerMoved',function(data){
-        myGame = data;
+    socket.on('playerMoved',function(game, movingPlayerId){
+        myGame = game;
+        if(socket.socket.sessionid === movingPlayerId){
+            board.removeMovementPoint();
+            if(gameStarted){
+                board.setMessage("");
+                socket.emit('turnEnded', myGame);
+            }
+        }
         updatePositions();
     });
 
@@ -323,6 +449,7 @@ $(function(){
         startButton.prop("disabled", true);
         gameStarted = true;
         myGame = game;
+        board.setMessage("game Started");
         updatePositions();
         socket.emit('ready',myGame);
         console.log(gameType);
@@ -421,12 +548,18 @@ $(function(){
         uiblock.hide();
         gamehtml.show();
         myGame = game;
+        board = new Board(game.categoriesArr, thisObj);
+        updatePositions();
+    });
+
+    socket.on('illegalMove', function(){
+        board.setMessage("Cannot make that move, you can only move 1 field");
         updatePositions();
     });   
 
     //input events
     moveButton.on('click',function(){
-        socket.emit('playerMoved',myGame);
+        //socket.emit('playerMoved',myGame);
     });
 
     questionButton.on('click', function(){
@@ -467,6 +600,7 @@ $(function(){
         }
     });
 
+    //initialize
     $('.btn-group').button();
     turnBasedToggle.addClass("active");
     gamehtml.hide();
@@ -496,4 +630,13 @@ $(function(){
     //ctx.clearRect(0,0,canvas[0].width,canvas[0].height)
     //drawBoardPiece(boardPoints[0].x,boardPoints[0].y);
 
+}
+
+$(function(){
+    if(!('getContext' in document.createElement('canvas'))){
+        alert('Sorry, it looks like your browser does not support canvas!');
+        $('header').innerHTML = "Browser does not support canvas";
+    }
+
+    var session = new gameSession;
 });

@@ -39,14 +39,17 @@ function Game(gameplayers, initiator, id){
     this.started = false;
     this.initiator = initiator;
     this.id = id;
-    this.colors = ['red','blue','yellow','green'];
+    this.colors = ['pink','teal','orange','darkgreen'];
     this.gameType = 'turnBased';
     this.idHasTurn = '';
+    this.categoriesArr = [];
+    this.boardSize = 11;
 }
 var players = [],
     games = [],
     colors = ['red','blue','yellow','green'],
     gameType = "turnBased",
+    categories = ['historie', 'dansk', 'engelsk', 'naturteknik'],
     idHasTurn = 0,
     nextGameId = 0,
     colorPointer = 0;
@@ -102,31 +105,69 @@ function shuffle(array) {
 
 //Will cause all players in a game with the initator to go back to idle screen. There should only be one game with this initiator.
 function abort(initiatorId, socketid){
-        var involvedPlayers = [];
-        for(var i=0; i < games.length; i++){
-            if(games[i].initiator.socketId === initiatorId){
-                for(var j=0; j < games[i].players.length; j++){
-                    console.log("someone pressed no");
-                    io.sockets.socket(games[i].players[j].socketId).emit("abortGame", socketid);
-                    involvedPlayers.push(games[i].players[j]);
-                }
-                games.splice(i,1);
-                console.log(games);
+    var involvedPlayers = [];
+    for(var i=0; i < games.length; i++){
+        if(games[i].initiator.socketId === initiatorId){
+            for(var j=0; j < games[i].players.length; j++){
+                console.log("someone pressed no");
+                io.sockets.socket(games[i].players[j].socketId).emit("abortGame", socketid);
+                involvedPlayers.push(games[i].players[j]);
             }
-        }
-        //slightly ineffecient code
-        for(var k=0; k < players.length; k++){
-            for (var h = 0; h < involvedPlayers.length; h++) {
-                if(players[k].socketId === involvedPlayers[h].socketId){
-                    players[k].idle = true;
-                }
-            };
+            games.splice(i,1);
+            console.log(games);
         }
     }
+    //slightly ineffecient code
+    for(var k=0; k < players.length; k++){
+        for (var h = 0; h < involvedPlayers.length; h++) {
+            if(players[k].socketId === involvedPlayers[h].socketId){
+                players[k].idle = true;
+            }
+        }
+    }
+}
+
+function setCategoriesArr(game){
+    var index;
+    for(var i = 0; i < game.boardSize; i++){
+        game.categoriesArr[i] = [];
+        for(var j = 0; j < game.boardSize; j++){
+            index = Math.floor(Math.random() * categories.length);
+            game.categoriesArr[i][j] = categories[index];
+        }
+    }
+}
+
+function checkLegalMove(coords, player){
+    if(((coords.x - player.position.x == 1 || player.position.x - coords.x == 1) && (coords.y - player.position.y == 1 || player.position.y - coords.y == 1)) || (coords.x - player.position.x == 0 && (coords.y - player.position.y == 1 || player.position.y - coords.y == 1)) || ((coords.x - player.position.x == 1 || player.position.x - coords.x == 1) && (coords.y - player.position.y == 0) ) ) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+function resetToBasePos(actPlayers, boardSize){
+     for(k = 0; k < actPlayers.length; k++){
+                switch(k){
+                    case 0:
+                        actPlayers[k].position = {x: 0, y: 0};
+                        break;
+                    case 1:
+                        actPlayers[k].position = {x: 0,y: boardSize - 1};
+                        break;
+                    case 2:
+                        actPlayers[k].position = {x: boardSize - 1, y: 0};
+                        break;
+                    case 3:
+                        actPlayers[k].position = {x: boardSize - 1, y: boardSize - 1};
+                }
+            }
+    return actPlayers;
+}
 
 io.sockets.on('connection', function(socket){
     socket.on('newPlayer', function(data){
-       addPlayer(0,players.length, colors[colorPointer++],socket.id, data.playerName);
+       addPlayer({x: 0, y: 0},players.length, colors[colorPointer++],socket.id, data.playerName);
        socket.broadcast.emit('newPlayer',players);
        socket.emit('init', players);
        console.log("player joined");
@@ -174,7 +215,7 @@ io.sockets.on('connection', function(socket){
             if(games[i].id == data.game.id){
                 games[i].gameType = data.gameType;
                 for(var j = 0; j < games[i].players.length; j++){
-                    games[i].players[j].position = 0;
+                    games[i].players = resetToBasePos(games[i].players, games[i].boardSize);
                     games[i].players[j].winner = false;
                     games[i].players[j].ready = false;
                 }
@@ -362,24 +403,66 @@ io.sockets.on('connection', function(socket){
             currentGame.players[k].color = currentGame.colors[k];
         }
 
-        //After all colors have been set, send game to clients with enterGame event
-        for (k = 0; k < currentGame.players.length; k++) {
-            if(numReadyToEnter == currentGame.players.length){
-                io.sockets.socket(currentGame.players[k].socketId).emit("enterGame",currentGame);
-            }
-        }
+
         if(numReadyToEnter == currentGame.players.length){
+            setCategoriesArr(currentGame);
+            currentGame.players = resetToBasePos(currentGame.players, currentGame.boardSize);
+            for (k = 0; k < currentGame.players.length; k++) {
+                io.sockets.socket(currentGame.players[k].socketId).emit("enterGame",currentGame);                
+            }
             for(i = 0; i < games.length; i++){
                 if(currentGame.id == games[i].id){
                     games[i].entered = true;
                     games[i] = currentGame;
                 }
             }
-        }
-        if(!(numReadyToEnter == currentGame.players.length)){
+
+        } else {
             socket.emit('waitForResponse', currentGame);
         }
     });
+
+/*
+*
+* parameters: {x: int, y: int}, game
+*/
+socket.on('requestMove',function(coords, game) {
+    console.log('Event: requestMove');
+    var movement = false,
+        winningMove = false;
+    for (var i = 0; i < games.length; i++) {
+        if(games[i].id == game.id){
+            for(var j = 0; j < games[i].players.length; j++){
+                if(games[i].players[j].socketId === socket.id){
+                    if(checkLegalMove(coords, games[i].players[j])){
+                        games[i].players[j].position = coords;
+                        movement = true;
+                        if(coords.x == (games[i].boardSize-1)/2 && coords.y == (games[i].boardSize-1)/2){
+                            winningMove = true;
+                            games[i].players[j].winner = true;
+                        }
+                    } else {
+                        console.log("Emitted: illegalMove")
+                        socket.emit('illegalMove');
+                    }
+                }
+            }
+            if(movement){
+                for(j = 0; j < games[i].players.length; j++){
+                    io.sockets.socket(games[i].players[j].socketId).emit('playerMoved', games[i], socket.id);
+                    if(winningMove){
+                        if(games[i].players[j].socketId != socket.id){
+                            io.sockets.socket(games[i].players[j].socketId).emit('playerLost');
+                        } else {
+                            socket.emit('playerWon');
+                        }
+                    }
+                }
+            }
+        }
+        break;
+    }
+});
 
 });
 
