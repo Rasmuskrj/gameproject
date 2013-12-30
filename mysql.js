@@ -7,6 +7,7 @@ var mysqlConnection = mysql.createConnection({
     database:   'Quiz_questions'
 });
 
+
 exports.connect = function(){
     mysqlConnection.connect(function(err){
         if(err != null){
@@ -17,10 +18,18 @@ exports.connect = function(){
 
 exports.getQuestion = function(category, callback){
     var id = 1,
-        sql = "SELECT * FROM " + category + " WHERE id=" + id + ";",
+        sql = "SELECT count(*) FROM " + category + ";",
         response = null;
 
-    mysqlConnection.query(sql, function(err, rows, fields){
-        callback(rows[0]);
+    console.log(category);
+    mysqlConnection.query(sql,function(err1, rows1, fields1){
+        var maxId = rows1[0]["count(*)"];
+        id = Math.floor(Math.random() * maxId) + 1;
+        sql = "SELECT * FROM " + category + " WHERE id=" + id + ";";
+        console.log(id);
+        mysqlConnection.query(sql, function(err, rows, fields){
+            callback(rows[0]);
+        });
     });
+
 };

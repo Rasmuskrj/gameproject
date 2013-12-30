@@ -1,28 +1,27 @@
+//Load node modules
 var express = require("express");
 var app = express();
 var $ = require('jquery');
 var port = 3700;
-
 var database = require("./mysql.js");
+var io = require('socket.io').listen(app.listen(port));
 
-/*app.set('views', __dirname + '/tpl');
-app.set('view engine', "jade");
-app.engine('jade', require('jade').__express);
-app.get("/", function(req, res) {
-    res.render("home");
-});*/
 
+//set public folder for holding resources
 app.use(express.static(__dirname + '/public'));
 app.get('/', function(req, res) {
     res.sendfile(__dirname + '/public/layout.html')
 });
+//connect to database
 database.connect();
-var io = require('socket.io').listen(app.listen(port));
+
+//disable native socket.io loggings, to avoid console spam
 io.set('log level', 0);
-function Player(pos, identifier, color, socketId, username){
+
+//datastructure for Player object
+function Player(pos, color, socketId, username){
     this.position = pos;
     this.color = color;
-    this.id = identifier;
     this.socketId = socketId;
     this.winner = false;
     this.ready = false;
@@ -31,9 +30,8 @@ function Player(pos, identifier, color, socketId, username){
     this.readyToEnter = false;
     this.username = username;
 }
-
+//Datastructure for game object
 function Game(gameplayers, initiator, id){
-    //TODO create game identifier, and use this to find games. Also tie identifier to client object in a many to many relation
     this.players = gameplayers;
     this.entered = false;
     this.started = false;
@@ -45,42 +43,16 @@ function Game(gameplayers, initiator, id){
     this.categoriesArr = [];
     this.boardSize = 11;
 }
+
+//server global variables
 var players = [],
     games = [],
     colors = ['red','blue','yellow','green'],
-    gameType = "turnBased",
     categories = ['historie', 'dansk', 'engelsk', 'naturteknik'],
     idHasTurn = 0,
-    nextGameId = 0,
-    colorPointer = 0;
+    nextGameId = 0;
 
-function addPlayer(pos, identifier, color, socketId, username) {
-    var adder = new Player(pos, identifier, color, socketId, username);
-    players.push(adder);
-}
-
-function getQuestion(callback){
-    database.getQuestion('historie',function(questionObj){
-        var question = {
-            title: questionObj.subcategory,
-            question: questionObj.question,
-            options: []
-        }
-        var answers = questionObj.answer.split(",");
-        for(var i = 0; i < answers.length; i++){
-            question.options.push({label : answers[i], correct : true});
-        }
-        var posibles = questionObj.possibilities.split(",");
-        for(i = 0; i < posibles.length; i++){
-            question.options.push({label : posibles[i], correct : false});
-        }
-        shuffle(question.options);
-        callback(question);
-    });
-
-
-}
-
+//function for shuffling the options in the question object
 function shuffle(array) {
     var currentIndex = array.length
         , temporaryValue
@@ -105,14 +77,18 @@ function shuffle(array) {
 
 //Will cause all players in a game with the initator to go back to idle screen. There should only be one game with this initiator.
 function abort(initiatorId, socketid){
+    //array to hold players that need to be informed
     var involvedPlayers = [];
+    //find initiators game
     for(var i=0; i < games.length; i++){
         if(games[i].initiator.socketId === initiatorId){
+            //send abortGame event to all players in this game
             for(var j=0; j < games[i].players.length; j++){
                 console.log("someone pressed no");
                 io.sockets.socket(games[i].players[j].socketId).emit("abortGame", socketid);
                 involvedPlayers.push(games[i].players[j]);
             }
+            //remove game from games array
             games.splice(i,1);
             console.log(games);
         }
@@ -127,18 +103,27 @@ function abort(initiatorId, socketid){
     }
 }
 
+//function for assigning categories to the game board
 function setCategoriesArr(game){
     var index;
     for(var i = 0; i < game.boardSize; i++){
+        //create second dimension of categoriesArr
         game.categoriesArr[i] = [];
+        //iterate through and set category to a randomly chosen one from categories array
         for(var j = 0; j < game.boardSize; j++){
             index = Math.floor(Math.random() * categories.length);
             game.categoriesArr[i][j] = categories[index];
+            //set center field to end field
+            if(j == (game.boardSize - 1)/2 && i == (game.boardSize - 1)/2) {
+                game.categoriesArr[i][j] = 'endField';
+            }
         }
     }
 }
 
+//function to check if the move requested by a player is legal
 function checkLegalMove(coords, player){
+    //if the coords represent an adjecent field, return true
     if(((coords.x - player.position.x == 1 || player.position.x - coords.x == 1) && (coords.y - player.position.y == 1 || player.position.y - coords.y == 1)) || (coords.x - player.position.x == 0 && (coords.y - player.position.y == 1 || player.position.y - coords.y == 1)) || ((coords.x - player.position.x == 1 || player.position.x - coords.x == 1) && (coords.y - player.position.y == 0) ) ) {
         return true;
     } else {
@@ -146,6 +131,7 @@ function checkLegalMove(coords, player){
     }
 }
 
+//function to reset player positions to each corner of the board. Only works with 4 or less players
 function resetToBasePos(actPlayers, boardSize){
      for(k = 0; k < actPlayers.length; k++){
                 switch(k){
@@ -165,52 +151,70 @@ function resetToBasePos(actPlayers, boardSize){
     return actPlayers;
 }
 
+//
 io.sockets.on('connection', function(socket){
+
+    //emitted by a  client when they establish connection to the server
     socket.on('newPlayer', function(data){
-       addPlayer({x: 0, y: 0},players.length, colors[colorPointer++],socket.id, data.playerName);
+        //add player to players array
+        var player = new Player({x: 0, y: 0}, 'red', socket.id, data.playerName);
+        players.push(player);
+        //inform other players of new player
        socket.broadcast.emit('newPlayer',players);
+       // inform new player of the current server state
        socket.emit('init', players);
        console.log("player joined");
     });
 
-    socket.on('playerMoved', function(clientGame){
-        var winningMove = false;
-        for (var i = 0; i < games.length; i++) {
-            if(games[i].id == clientGame.id){
+    //Event called by client when they request a question from the server
+    socket.on('question', function(game){
+        var questionCategory,
+            player;
+        //find game and player to get the position, and set questionCategory with the corresponding category
+        for(var i = 0; i < games.length; i++){
+            if(games[i].id == game.id){
                 for(var j = 0; j < games[i].players.length; j++){
                     if(games[i].players[j].socketId === socket.id){
-                        games[i].players[j].position = (games[i].players[j].position +1)%8;
-                        socket.emit('playerMoved', games[i]);
-                        if (games[i].players[j].position == 0) {
-                            games[i].players[j].winner = true;
-                            socket.emit('playerWon');
-                            winningMove = true;
-                        }
+                        player = games[i].players[j];
+                        console.log(player.username);
+                        questionCategory = games[i].categoriesArr[player.position.x][player.position.y];
                     }
                 }
-                for(j = 0; j < games[i].players.length; j++){
-                    if(games[i].players[j].socketId != socket.id){
-                        io.sockets.socket(games[i].players[j].socketId).emit('playerMoved', games[i]);
-                        if(winningMove){
-                            io.sockets.socket(games[i].players[j].socketId).emit('playerLost');
-                        }
-                    }
-                }
-                break
+                break;
             }
         }
+        //call database module and provide anonymous function as callback. questionObj provided by database module
+        database.getQuestion(questionCategory ,function(questionObj){
+        //init question
+        var question = {
+            title: questionObj.subcategory,
+            question: questionObj.question,
+            options: []
+        }
+        //provide answer as option is set correctness
+        var answers = questionObj.answer.split(",");
+        for(var i = 0; i < answers.length; i++){
+            question.options.push({label : answers[i], correct : true});
+        }
+        //rest of options are wrong answers, also from the database
+        var posibles = questionObj.possibilities.split(",");
+        for(i = 0; i < posibles.length; i++){
+            question.options.push({label : posibles[i], correct : false});
+        }
+        //shuffle the order
+        shuffle(question.options);
+        //emit to client
+        socket.emit('questionResponse', question);
+        });
     });
-
-    socket.on('question', function(data){
-       getQuestion(function(question){
-           socket.emit('questionResponse', question);
-       });
-    });
-
+    
+    //Event called when cleints press start game. Argument is an object
     socket.on('startGame', function(data) {
+        var gameType = '';
         console.log("Event: Start Game");
 
-        gameType = data.gameType;
+        gameType = data.game.gameType;
+        //reset position and status for all players in game
         for(var i = 0; i < games.length; i++){
             if(games[i].id == data.game.id){
                 games[i].gameType = data.gameType;
@@ -222,6 +226,7 @@ io.sockets.on('connection', function(socket){
                 break
             }
         }
+        //Inform clients that the startGame button has been pressed, and set the initiator to have the first turn
         for(i = 0; i < games.length; i++){
             console.log("serverGame: " + games[i].id + ", clientGame: " + data.game.id);
             if(games[i].id == data.game.id){
@@ -239,12 +244,14 @@ io.sockets.on('connection', function(socket){
         }
         console.log("game Started");
     });
-
+    
+    //clients emit ready, when they are ready to start the game
     socket.on('ready', function(game){
         console.log("Event: ready");
 
         var playersReady = 0,
             currentGame = null;
+        //find game, set caller as ready and count ready players
         for (var i = 0; i < games.length; i++) {
             if(game.id == games[i].id){
                 currentGame = games[i];
@@ -260,7 +267,8 @@ io.sockets.on('connection', function(socket){
 
             }
         }
-        if(currentGame != null && playersReady >= currentGame.players.length && gameType == 'turnBased'){
+        // if all players are ready, tell the correct player to start turn
+        if(currentGame != null && playersReady >= currentGame.players.length && currentGame.gameType == 'turnBased'){
             for (i = 0; i < currentGame.players.length; i++) {
                 if(currentGame.players[i].socketId == currentGame.idHasTurn){
                     io.sockets.socket(currentGame.players[i].socketId).emit('startTurn');
@@ -268,26 +276,32 @@ io.sockets.on('connection', function(socket){
             }
         }
     });
-
+    
+    //event called when a player/client disconnects. Native in socket.io
     socket.on('disconnect', function(){
         var currentGame = null;
+        //remove player form players array
         for(var i = 0; i < players.length; i++){
             if(players[i].socketId == socket.id){
                 colors.push(players[i].color);
                 players.splice(i,1);
             }
         }
-        //handling games where players are prompting other players to join
+        //handling games where players are prompting other players to join and games in progress
+        //check if there is a game with the disconnecting player
         for (var j = 0; j < games.length; j++) {
             for(var k = 0; k < games[j].players.length; k++){
                 console.log(games[j].initiator.username);
                 if(games[j].players[k].socketId === socket.id){
+                    //if game hasn't started yet, cancel the game completely
                     if(!games[j].entered) {
                         abort(games[j].initiator.socketId);
                         break
                     } else {
+                        //else just remove the player
                         games[j].players.splice(k,1);
                         currentGame = games[j];
+                        //if game is empty, delete the game
                         if(games[j].players.length == 0){
                             games.splice(j,1);
                         }
@@ -296,6 +310,7 @@ io.sockets.on('connection', function(socket){
                 }
             }
         }
+        //inform all other players of the changes in status
         socket.broadcast.emit('playerDisconnected', players, currentGame);
     });
 
@@ -408,7 +423,7 @@ io.sockets.on('connection', function(socket){
             setCategoriesArr(currentGame);
             currentGame.players = resetToBasePos(currentGame.players, currentGame.boardSize);
             for (k = 0; k < currentGame.players.length; k++) {
-                io.sockets.socket(currentGame.players[k].socketId).emit("enterGame",currentGame);                
+                io.sockets.socket(currentGame.players[k].socketId).emit("enterGame",currentGame, currentGame.players[k]);                
             }
             for(i = 0; i < games.length; i++){
                 if(currentGame.id == games[i].id){

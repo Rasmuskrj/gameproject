@@ -12,7 +12,7 @@
 }
 
 canvas {
-    display: inline;
+    display: inline-block;
     width: 1200px;
     height: 800px;
 }
@@ -37,6 +37,11 @@ canvas {
     z-index: 1000;
     width: 400px;
     left: 40%;
+}
+
+#info {
+    display: inline-block;
+    float: right;
 }
 
 body.loading .myModal {

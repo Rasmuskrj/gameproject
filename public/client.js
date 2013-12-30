@@ -11,7 +11,8 @@ function Board(categoriesArr, newGameSession){
             'historie' : 'red',
             'dansk' : 'green',
             'engelsk' : 'yellow',
-            'naturteknik' : 'blue'
+            'naturteknik' : 'blue',
+            'endField'  : 'black'
         },
         gameStarted = false,
         movementPoints = 0;
@@ -65,7 +66,7 @@ function Board(categoriesArr, newGameSession){
             pieceBottomWidth = 10,
             pieceSeperationLength = 50;
 
-
+        ctx.lineWidth = 5;
         ctx.beginPath();
         ctx.moveTo(baseX-pieceBottomWidth,baseY+pieceSideWidth);
         ctx.lineTo(baseX, baseY-pieceSideWidth);
@@ -137,151 +138,73 @@ function Board(categoriesArr, newGameSession){
 
 }
 
-function OldBoard(){
-    var doc = $(document);
-    var canvas = $('#board');
-    var ctx = canvas[0].getContext("2d");
-    var midx = canvas.width() / 2 - 200,
-        midy = canvas.height() / 2,
-        rectWidth = 500,
-        rectHeight = 300,
-        gamePathWidth = 100,
-        innerRectWidth = rectWidth - gamePathWidth,
-        innerRectHeight = rectHeight - gamePathWidth,
-        colorKey = 0,
-        gameStarted = false,
-        players = {},
-        boardPiece = new Image(),
-        boardPoints = [
-            {
-                x : midx-(innerRectWidth/4),
-                y : midy-(innerRectHeight/2)-(gamePathWidth/4),
-                alignment: 'horizontal'
-            },
-            {
-                x : midx+(innerRectWidth/4),
-                y : midy-(innerRectHeight/2)-gamePathWidth/4,
-                alignment: 'horizontal'
-            },
-            {
-                x : midx+(innerRectWidth/2)+gamePathWidth/4,
-                y : midy-(innerRectHeight/4),
-                alignment: 'vertical'
-            },
-            {
-                x : midx+(innerRectWidth/2)+gamePathWidth/4,
-                y : midy+(innerRectHeight/4),
-                alignment: 'vertical'
-            },
-            {
-                x : midx+(innerRectWidth/4),
-                y : midy+(innerRectHeight/2)+gamePathWidth/4,
-                alignment: 'horizontal'
-            },
-            {
-                x : midx-(innerRectWidth/4),
-                y : midy+(innerRectHeight/2)+gamePathWidth/4,
-                alignment: 'horizontal'
-            },
-            {
-                x : midx-(innerRectWidth/2)-gamePathWidth/4,
-                y : midy+(innerRectHeight/4),
-                alignment: 'vertical'
-            },
-            {
-                x : midx-(innerRectWidth/2)-gamePathWidth/4,
-                y : midy-(innerRectHeight/4),
-                alignment: 'vertical'
-            }
-        ];
+function inputs(newGameSession) {
+    var moveButton = $('#move-button'),
+        questionButton = $('#question-button'),
+        startButton = $('#start-button'),
+        enterGameButton = $('#enterGame-button'),
+        abortEnterGameButton = $('#abortEnterGame-button'),
+        turnBasedToggle = $('#turnBasedLabel'),
+        enterGamePrompt = $('#enterGame-prompt'),
+        raceToggle = $('#raceLabel'),
+        usernameInput = $('#username'),
+        gameSession = newGameSession,
+        selectPlayers = $('#select-players');
 
-    this.setGameStarted = function(state){
-        gameStarted = state;
-    };
-
-    this.getBoardPointsArr = function(){
-        return boardPoints;
-    };
-
-    this.drawRect = function(centerX,centerY,width,height,fill,stroke){
-        ctx.beginPath();
-        ctx.rect(centerX-(width/2),centerY-(height/2),width,height);
-        ctx.fillStyle = fill;
-        ctx.fill();
-        ctx.lineWidth = 4;
-        ctx.strokeStyle = stroke;
-        ctx.stroke();
-
-    };
-
-    this.drawLine = function(fromX,fromY, toX,toY){
-        ctx.lineWidth = 4;
-        ctx.moveTo(fromX,fromY);
-        ctx.lineTo(toX,toY);
-        ctx.stroke();
-    };
-
-    this.drawBoard = function(){
-        ctx.clearRect(0,0,canvas[0].width,canvas[0].height);
-        this.drawRect(midx,midy,rectWidth,rectHeight,'white','black');
-        this.drawRect(midx,midy,innerRectWidth,innerRectHeight,'white','black');
-        this.drawLine(midx-(rectWidth/2),midy-(rectHeight/2),midx-(innerRectWidth/2),midy-(innerRectHeight/2));
-        this.drawLine(midx,midy-(rectHeight/2),midx,midy-(innerRectHeight/2));
-        this.drawLine(midx+(rectWidth/2),midy-(rectHeight/2),midx+(innerRectWidth/2),midy-(innerRectHeight/2));
-        this.drawLine(midx+(rectWidth/2),midy,midx+(innerRectWidth/2),midy);
-        this.drawLine(midx+(rectWidth/2),midy+(rectHeight/2),midx+(innerRectWidth/2),midy+(innerRectHeight/2));
-        this.drawLine(midx,midy+(rectHeight/2),midx,midy+(innerRectHeight/2));
-        this.drawLine(midx-(rectWidth/2),midy+(rectHeight/2),midx-(innerRectWidth/2),midy+(innerRectHeight/2));
-        this.drawLine(midx-(rectWidth/2),midy,midx-(innerRectWidth/2),midy);
-
-        if(gameStarted){
-            ctx.font = "28px Arial";
-            ctx.strokeStyle = 'green';
-            ctx.strokeText("Game Started",midx-100,midy);
+    this.blockButtons = function(type){
+        if(type == "turnBased"){
+            questionButton.prop("disabled", true);
         }
-    };
+        moveButton.prop("disabled", true);
+        startButton.prop("disabled", true);
+    }
 
-    this.drawBoardPiece = function (atPos, color, drawnAtPos){
-        var baseX = boardPoints[atPos].x,
-            baseY = boardPoints[atPos].y,
-            pieceSideWidth = 15,
-            pieceBottomWidth = 10,
-            pieceSeperationLength = 50,
-            alignment = boardPoints[atPos].alignment;
+    this.enableButtons = function() {
+        moveButton.prop("disabled", false);
+        questionButton.prop("disabled", false);
+        startButton.prop("disabled", false);
+    } 
 
-        if(alignment==='horizontal' && drawnAtPos>0){
-            baseX = baseX - (drawnAtPos)*pieceSeperationLength
-        } else if(drawnAtPos >0){
-            baseY = baseY - (drawnAtPos)*pieceSeperationLength;
-        }
-        ctx.beginPath();
-        ctx.moveTo(baseX-pieceBottomWidth,baseY+pieceSideWidth);
-        ctx.lineTo(baseX, baseY-pieceSideWidth);
-        ctx.lineTo(baseX+pieceBottomWidth,baseY+pieceSideWidth);
-        ctx.lineTo(baseX-pieceBottomWidth,baseY+pieceSideWidth);
-        ctx.lineJoin = 'miter';
-        ctx.strokeStyle = color;
-        ctx.stroke();
-        colorKey++;
-    };
+     moveButton.on('click',function(){
+        //socket.emit('playerMoved',myGame);
+    });
 
-    this.clearboard = function() {
-        ctx.clearRect(0,0,canvas[0].width,canvas[0].height);
-    };
+    questionButton.on('click', function(){
+        gameSession.questionButtonEvent();
+    });
 
-    //this.drawnAtPos = 0;
+    turnBasedToggle.on('click', function() {
+        gameSession.setGameMode('turnBased');
+    });
+
+    raceToggle.on('click', function() {
+        gameSession.setGameMode('race');
+    });
+
+    startButton.on('click', function(){
+        gameSession.startGameEvent();
+    });
+
+    enterGameButton.on('click', function(){
+        gameSession.enterGameEvent(selectPlayers.val());
+    });
+
+    abortEnterGameButton.on('click', function() {
+        console.log(socket.socket.sessionid);
+        gameSession.abortEnterGameEvent();
+    });
+
+    $('.btn-group').button();
+    turnBasedToggle.addClass("active");
+    usernameInput.keypress(function(e){
+        gameSession.usernameInputEvent(e)
+    });
 
 }
 
 function gameSession() {
     //variables
     var socket = io.connect(window.location.hostname),
-        moveButton = $('#move-button'),
-        questionButton = $('#question-button'),
-        startButton = $('#start-button'),
-        enterGameButton = $('#enterGame-button'),
-        abortEnterGameButton = $('#abortEnterGame-button'),
-        turnBasedToggle = $('#turnBasedLabel'),
         enterGamePrompt = $('#enterGame-prompt'),
         raceToggle = $('#raceLabel'),
         gamehtml = $('#gamehtml'),
@@ -291,6 +214,7 @@ function gameSession() {
         chooseHandlehtml = $('#chooseHandle'),
         usernameInput = $('#username'),
         selectPlayers = $('#select-players'),
+        playerColorInfo = $('#yourColorInfo'),
         gameType = 'turnBased',
         programState = '',
         myUsername = '',
@@ -299,6 +223,7 @@ function gameSession() {
         myGame = {},
         thisObj = this;
         gameStarted = false;
+        inputs = new inputs(this),
         playerId = Math.round($.now()*Math.random());
         board = null;
 
@@ -377,10 +302,60 @@ function gameSession() {
         $('.panel-body',enterGamePrompt).empty().append(body);
     }
 
+    function setPlayerColorInfo(){
+        playerColorInfo.html('<p style="color:' + player.color + ';">Your Color is ' + player.color + '</p>');
+    }
+
     //public funcions
     this.requestMove = function(boardMousePos){
         console.log("requestMove called");
         socket.emit('requestMove', boardMousePos, myGame);
+    }
+
+    this.questionButtonEvent = function(){
+        socket.emit('question', myGame);
+    }
+
+    this.setGameMode = function(mode) {
+        gameType = mode;
+    }
+
+    this.startGameEvent = function(){
+        socket.emit('startGame',{
+            'player' : playerId,
+            'game'  : myGame,
+            'gameType': gameType
+        });
+    }
+
+    this.enterGameEvent = function(selectedPlayers){
+        if(programState === "lobby"){
+            console.log(selectedPlayers);
+            socket.emit('requestEnterGame',selectedPlayers);
+        }
+    }
+
+    this.abortEnterGameEvent = function(){
+         console.log(socket.socket.sessionid);
+        if(programState === "waiting"){
+            socket.emit('playerDenied', myGame.initiator.socketId);
+        }
+    }
+
+    this.usernameInputEvent = function(key){
+         if(key.keyCode == 13){
+            myUsername = usernameInput.val();
+            key.preventDefault();
+            key.stopPropagation();
+            chooseHandlehtml.hide();
+            lobbyhtml.show();
+            enterGamePrompt.hide();
+            socket.emit('newPlayer', {
+                'playerName' : myUsername
+            });
+            socket.emit("queryPlayerList");
+            programState = 'lobby';
+        }
     }
     //socket events
     socket.on('newPlayer',function(data){
@@ -442,11 +417,7 @@ function gameSession() {
         console.log("Game Started");
         gameType = gameTypeServer;
         board.setGameStarted(true);
-        if(gameType == "turnBased"){
-            questionButton.prop("disabled", true);
-        }
-        moveButton.prop("disabled", true);
-        startButton.prop("disabled", true);
+        inputs.blockButtons(gameType);
         gameStarted = true;
         myGame = game;
         board.setMessage("game Started");
@@ -457,9 +428,7 @@ function gameSession() {
 
     socket.on('startTurn', function() {
         console.log("start turn called");
-        socket.emit('question',{
-            'player' : playerId
-        });
+        socket.emit('question', myGame);
     });
 
     socket.on('enterGameRequest',function() {
@@ -469,18 +438,14 @@ function gameSession() {
     socket.on('playerWon',function() {
         bootbox.alert("You won! Congratulations!");
         gameStarted = false;
-        moveButton.prop("disabled", false);
-        questionButton.prop("disabled", false);
-        startButton.prop("disabled", false);
+        inputs.enableButtons();
         board.setGameStarted(false);
     });
 
     socket.on('playerLost', function() {
         bootbox.alert("You lost! Better luck next time!");
         gameStarted = false;
-        moveButton.prop("disabled", false);
-        questionButton.prop("disabled", false);
-        startButton.prop("disabled", false);
+        inputs.enableButtons();
         board.setGameStarted(false);
     });
 
@@ -541,13 +506,15 @@ function gameSession() {
         enterGameMessage("Cannot start another game", "you cannot initiate more than one game at a time");
     });
 
-    socket.on('enterGame', function (game) {
+    socket.on('enterGame', function (game, playerObject) {
         console.log("Enter Game");
         programState = 'game';
         lobbyhtml.hide();
         uiblock.hide();
         gamehtml.show();
         myGame = game;
+        player = playerObject;
+        setPlayerColorInfo();
         board = new Board(game.categoriesArr, thisObj);
         updatePositions();
     });
@@ -558,70 +525,12 @@ function gameSession() {
     });   
 
     //input events
-    moveButton.on('click',function(){
-        //socket.emit('playerMoved',myGame);
-    });
-
-    questionButton.on('click', function(){
-        socket.emit('question', {
-           'player' : playerId
-       });
-    });
-
-    turnBasedToggle.on('click', function() {
-        gameType = 'turnBased';
-        console.log(gameType);
-    });
-
-    raceToggle.on('click', function() {
-        gameType = 'race';
-        console.log(gameType);
-    });
-
-    startButton.on('click', function(){
-        socket.emit('startGame',{
-            'player' : playerId,
-            'game'  : myGame,
-            'gameType': gameType
-        });
-    });
-
-    enterGameButton.on('click', function(){
-        if(programState === "lobby"){
-            console.log(selectPlayers.val());
-            socket.emit('requestEnterGame',selectPlayers.val());
-        }
-    });
-
-    abortEnterGameButton.on('click', function() {
-        console.log(socket.socket.sessionid);
-        if(programState === "waiting"){
-            socket.emit('playerDenied', myGame.initiator.socketId);
-        }
-    });
-
+   
     //initialize
-    $('.btn-group').button();
-    turnBasedToggle.addClass("active");
     gamehtml.hide();
     lobbyhtml.hide();
     programState = 'welcome';
-    usernameInput.keypress(function(e){
-        if(e.keyCode == 13){
-            myUsername = usernameInput.val();
-            e.preventDefault();
-            e.stopPropagation();
-            chooseHandlehtml.hide();
-            lobbyhtml.show();
-            enterGamePrompt.hide();
-            socket.emit('newPlayer', {
-                'playerName' : myUsername
-            });
-            socket.emit("queryPlayerList");
-            programState = 'lobby';
-        }
 
-    });
 
 
 
