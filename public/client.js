@@ -190,7 +190,6 @@ function inputs(newGameSession) {
     });
 
     abortEnterGameButton.on('click', function() {
-        console.log(socket.socket.sessionid);
         gameSession.abortEnterGameEvent();
     });
 
