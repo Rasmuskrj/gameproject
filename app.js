@@ -78,26 +78,33 @@ function shuffle(array) {
 //Will cause all players in a game with the initator to go back to idle screen. There should only be one game with this initiator.
 function abort(initiatorId, socketid){
     //array to hold players that need to be informed
-    var involvedPlayers = [];
+    var involvedPlayers = [],
+        entered = true;
     //find initiators game
     for(var i=0; i < games.length; i++){
         if(games[i].initiator.socketId === initiatorId){
-            //send abortGame event to all players in this game
-            for(var j=0; j < games[i].players.length; j++){
-                console.log("someone pressed no");
-                io.sockets.socket(games[i].players[j].socketId).emit("abortGame", socketid);
-                involvedPlayers.push(games[i].players[j]);
+            //check if game is already entered
+            if(!games[i].entered){
+                entered = false;
+                //send abortGame event to all players in this game
+                for(var j=0; j < games[i].players.length; j++){
+                    console.log("someone pressed no");
+                    io.sockets.socket(games[i].players[j].socketId).emit("abortGame", socketid);
+                    involvedPlayers.push(games[i].players[j]);
+                }
+                //remove game from games array
+                games.splice(i,1);
+                console.log(games);
             }
-            //remove game from games array
-            games.splice(i,1);
-            console.log(games);
         }
     }
-    //slightly ineffecient code
-    for(var k=0; k < players.length; k++){
-        for (var h = 0; h < involvedPlayers.length; h++) {
-            if(players[k].socketId === involvedPlayers[h].socketId){
-                players[k].idle = true;
+    if(!entered){
+        //slightly ineffecient code
+        for(var k=0; k < players.length; k++){
+            for (var h = 0; h < involvedPlayers.length; h++) {
+                if(players[k].socketId === involvedPlayers[h].socketId){
+                    players[k].idle = true;
+                }
             }
         }
     }
@@ -213,7 +220,7 @@ io.sockets.on('connection', function(socket){
         var gameType = '';
         console.log("Event: Start Game");
 
-        gameType = data.game.gameType;
+        gameType = data.gameType;
         //reset position and status for all players in game
         for(var i = 0; i < games.length; i++){
             if(games[i].id == data.game.id){

@@ -317,6 +317,7 @@ function gameSession() {
 
     this.setGameMode = function(mode) {
         gameType = mode;
+        console.log(gameType);
     }
 
     this.startGameEvent = function(){
