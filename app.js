@@ -305,6 +305,18 @@ io.sockets.on('connection', function(socket){
                         abort(games[j].initiator.socketId);
                         break
                     } else {
+                        if(games[j].players.length > 2) {
+                            //If the disconnecting player has the turn, pass it on to the next
+                            if(games[j].idHasTurn === games[j].players[k].socketId){
+                                io.sockets.socket(games[j].players[(k+1)%games[j].players.length].socketId).emit('startTurn');
+                                console.log("Asked " + games[j].players[(k+1)%games[j].players.length].username + " to start turn.");
+                            }
+                        } else
+                        //If there is only 1 player left, declare this one the winner
+                        {
+                            games[j].players[(k+1)%games[j].players.length].winner = true;
+                            io.sockets.socket(games[j].players[(k+1)%games[j].players.length].socketId).emit('playerWon');
+                        }
                         //else just remove the player
                         games[j].players.splice(k,1);
                         currentGame = games[j];
@@ -329,15 +341,20 @@ io.sockets.on('connection', function(socket){
                 currentGame = games[i];
             }
         }
-        console.log(currentGame.gameType);
         if(currentGame.gameType == "turnBased"){
             for (i = 0; i < currentGame.players.length; i++) {
                 if (currentGame.players[i].socketId === socket.id) {
                     console.log("Asked player " + (i+1)%currentGame.players.length + " to start turn");
                     if(!players[i].winner){
                         io.sockets.socket(currentGame.players[(i+1)%currentGame.players.length].socketId).emit('startTurn');
+                        currentGame.idHasTurn = currentGame.players[(i+1)%currentGame.players.length].socketId;
                     }
                 }
+            }
+        }
+        for (i = 0; i < games.length; i++) {
+            if(games[i].id == game.id){
+                games[i] = currentGame;
             }
         }
     });
@@ -476,6 +493,7 @@ socket.on('requestMove',function(coords, game) {
                         if(games[i].players[j].socketId != socket.id){
                             io.sockets.socket(games[i].players[j].socketId).emit('playerLost');
                         } else {
+                            games[i].players[(j+1)%games[i].players.length].winner = true;
                             socket.emit('playerWon');
                         }
                     }
