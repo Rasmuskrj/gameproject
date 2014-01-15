@@ -122,8 +122,6 @@ function Board(categoriesArr, newGameSession){
             console.log("click event called");
 
         }
-        console.log("movementPoints: " + movementPoints + " positionX: " + boardMousePos.x + " positionY: " + boardMousePos.y);
-        console.log(movementPoints > 0 && boardMousePos.x > -1 && boardMousePos.y > -1);
     });
     for (var i = 0; i < myCategoriesArr.length; i++) {
         boardPoints[i] = [];
@@ -359,6 +357,7 @@ function gameSession() {
     }
     //socket events
     socket.on('newPlayer',function(data){
+        console.log("Event: New Player");
         players = data;
         console.log("newPlayer called this" + players);
         if(programState === 'game'){
@@ -370,6 +369,7 @@ function gameSession() {
 
     });
     socket.on('playerMoved',function(game, movingPlayerId){
+        console.log("Event: Player Moved");
         myGame = game;
         if(socket.socket.sessionid === movingPlayerId){
             board.removeMovementPoint();
@@ -382,6 +382,7 @@ function gameSession() {
     });
 
     socket.on('init',function(data){
+       console.log("Event: Init");
        players = data;
        //this is not good
        player = players[players.length - 1];
@@ -392,16 +393,19 @@ function gameSession() {
     });
 
     socket.on('questionResponse',function(data){
+        console.log("Event: QuestionResponse");
         console.log(data);
         showQuestion(data);
     });
 
     socket.on('updatePlayerSelector', function(serverPlayers){
+        console.log("Event: UpdatePlayerSelector");
         players = serverPlayers;
         updatePlayerSelector();
     });
 
     socket.on('playerDisconnected', function(data, game){
+       console.log("Event: PlayerDisconnected");
        players = data;
        updatePlayerSelector();
        if(game != null) {
@@ -414,7 +418,7 @@ function gameSession() {
     });
 
     socket.on('gameStarted', function(game, gameTypeServer) {
-        console.log("Game Started");
+        console.log("Event: Game Started");
         gameType = gameTypeServer;
         board.setGameStarted(true);
         inputs.blockButtons(gameType);
@@ -427,15 +431,12 @@ function gameSession() {
     });
 
     socket.on('startTurn', function() {
-        console.log("start turn called");
+        console.log("Event: startTurn");
         socket.emit('question', myGame);
     });
 
-    socket.on('enterGameRequest',function() {
-
-    });
-
     socket.on('playerWon',function() {
+        console.log("Event: PlayerWon");
         bootbox.alert("You won! Congratulations!");
         gameStarted = false;
         inputs.enableButtons();
@@ -443,6 +444,7 @@ function gameSession() {
     });
 
     socket.on('playerLost', function() {
+        console.log("Event: PlayerLost");
         bootbox.alert("You lost! Better luck next time!");
         gameStarted = false;
         inputs.enableButtons();
@@ -450,11 +452,13 @@ function gameSession() {
     });
 
     socket.on('playerList', function(players){
+        console.log("Event: PlayerList");
         this.players = players;
         updatePlayerSelector();
     });
 
     socket.on('promptEnterGame', function(id){
+        console.log("Event: PromptEnterGame");
         var promptingPlayerName;
         programState = 'prompted';
         for(var i=0; i < players.length; i++){
@@ -474,20 +478,21 @@ function gameSession() {
     });
 
     socket.on('playerBusy', function(player){
+        console.log("Event: PlayerBusy");
         enterGamePrompt.show();
         $('.panel-heading',enterGamePrompt).empty().append("Player " + player.username + " is busy");
         $('.panel-body',enterGamePrompt).empty().append("Try to find a player that is not busy.");
     });
 
     socket.on('waitForResponse', function(game){
+        console.log("Event: WaitForResponse");
         waitForResponse();
         programState = 'waiting';
         myGame = game;
     });
 
     socket.on('abortGame', function(aborterId){
-        console.log("it's over");
-        console.log("sessionid: " + socket.socket.sessionid + ", aborterId: " + aborterId);
+        console.log("Event: AbortGame");
         if(programState === 'prompted') {
             enterGamePrompt.hide();
         } else if(programState === 'waiting'){
@@ -503,11 +508,19 @@ function gameSession() {
     });
 
     socket.on('gameAmountOverflow', function(){
+        console.log("Event: gameAmountOverFlow");
+        enterGamePrompt.show();
         enterGameMessage("Cannot start another game", "you cannot initiate more than one game at a time");
     });
 
+    socket.on('tooManyPlayers', function(){
+        console.log("Event: TooManyPlayers");
+        enterGamePrompt.show();
+        enterGameMessage("Cannot start game", "You must select between 1 and 4 players");
+    });
+
     socket.on('enterGame', function (game, playerObject) {
-        console.log("Enter Game");
+        console.log("Event: EnterGame");
         programState = 'game';
         lobbyhtml.hide();
         uiblock.hide();
@@ -520,6 +533,7 @@ function gameSession() {
     });
 
     socket.on('illegalMove', function(){
+        console.log("Event: IllegalMove");
         board.setMessage("Cannot make that move, you can only move 1 field");
         updatePositions();
     });   

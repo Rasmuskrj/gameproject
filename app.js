@@ -50,6 +50,7 @@ var players = [],
     colors = ['red','blue','yellow','green'],
     categories = ['historie', 'dansk', 'engelsk', 'naturteknik'],
     idHasTurn = 0,
+    gameSize = 4,
     nextGameId = 0;
 
 //function for shuffling the options in the question object
@@ -373,7 +374,7 @@ io.sockets.on('connection', function(socket){
                 return
             }
         }
-        if(selectedPlayers != null && selectedPlayers.length > 0){
+        if(selectedPlayers != null && selectedPlayers.length > 0 && selectedPlayers.length <= gameSize - 1){
             for(var i=0; i<selectedPlayers.length; i++){
                 for(var j=0; j < players.length; j++){
                     if(selectedPlayers[i] === players[j].socketId){
@@ -415,6 +416,8 @@ io.sockets.on('connection', function(socket){
                     } 
                 }
             }
+        } else if(selectedPlayers.length > gameSize - 1) {
+            socket.emit("tooManyPlayers");
         }
     });
     
@@ -470,6 +473,9 @@ socket.on('requestMove',function(coords, game) {
     var movement = false,
         winningMove = false;
     for (var i = 0; i < games.length; i++) {
+        console.log("game id: " + game.id);
+        console.log("Games arr id: " + games[i].id);
+        console.log("i is: " + i);
         if(games[i].id == game.id){
             for(var j = 0; j < games[i].players.length; j++){
                 if(games[i].players[j].socketId === socket.id){
@@ -499,8 +505,8 @@ socket.on('requestMove',function(coords, game) {
                     }
                 }
             }
+            break;
         }
-        break;
     }
 });
 
