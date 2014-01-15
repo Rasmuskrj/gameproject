@@ -136,7 +136,7 @@ function Board(categoriesArr, newGameSession){
 
 }
 
-function inputs(newGameSession) {
+function Inputs(newGameSession) {
     var moveButton = $('#move-button'),
         questionButton = $('#question-button'),
         startButton = $('#start-button'),
@@ -199,7 +199,7 @@ function inputs(newGameSession) {
 
 }
 
-function gameSession() {
+function GameSession() {
     //variables
     var socket = io.connect(window.location.hostname),
         enterGamePrompt = $('#enterGame-prompt'),
@@ -220,7 +220,7 @@ function gameSession() {
         myGame = {},
         thisObj = this;
         gameStarted = false;
-        inputs = new inputs(this),
+        inputs = new Inputs(this),
         playerId = Math.round($.now()*Math.random());
         board = null;
 
