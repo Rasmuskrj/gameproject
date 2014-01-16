@@ -143,7 +143,6 @@ function Inputs(newGameSession) {
         enterGameButton = $('#enterGame-button'),
         abortEnterGameButton = $('#abortEnterGame-button'),
         turnBasedToggle = $('#turnBasedLabel'),
-        enterGamePrompt = $('#enterGame-prompt'),
         raceToggle = $('#raceLabel'),
         usernameInput = $('#username'),
         gameSession = newGameSession,
@@ -203,7 +202,6 @@ function GameSession() {
     //variables
     var socket = io.connect(window.location.hostname),
         enterGamePrompt = $('#enterGame-prompt'),
-        raceToggle = $('#raceLabel'),
         gamehtml = $('#gamehtml'),
         lobbyhtml = $('#lobbyhtml'),
         uiblock = $('#cover'),
@@ -218,8 +216,8 @@ function GameSession() {
         players = [],
         player = {},
         myGame = {},
-        thisObj = this;
-        gameStarted = false;
+        thisObj = this,
+        gameStarted = false,
         inputs = new Inputs(this),
         playerId = Math.round($.now()*Math.random());
         board = null;
@@ -561,5 +559,5 @@ $(function(){
         $('header').innerHTML = "Browser does not support canvas";
     }
 
-    var session = new gameSession;
+    var session = new GameSession;
 });
