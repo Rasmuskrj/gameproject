@@ -137,34 +137,74 @@ function Board(categoriesArr, newGameSession){
 }
 
 function Inputs(newGameSession) {
-    var moveButton = $('#move-button'),
-        questionButton = $('#question-button'),
+    var questionButton = $('#question-button'),
         startButton = $('#start-button'),
         enterGameButton = $('#enterGame-button'),
         abortEnterGameButton = $('#abortEnterGame-button'),
         turnBasedToggle = $('#turnBasedLabel'),
         raceToggle = $('#raceLabel'),
+        playerColorInfo = $('#yourColorInfo'),
+        selectPlayers = $('#select-players'),
+        enterGamePrompt = $('#enterGame-prompt'),
         usernameInput = $('#username'),
         gameSession = newGameSession,
         selectPlayers = $('#select-players');
+
+    function createEnterGamePromt(header,body,buttons) {
+        enterGamePrompt.show();
+        $('.panel-heading',enterGamePrompt).empty().append(header);
+        $('.panel-body',enterGamePrompt).empty().append(body);
+        $('.panel-body',enterGamePrompt).append("<br><div class='btn-group'><button id='confirmEnterGame-button' type='button' class='btn btn-default'>Yes</button><button id='denyEnterGame-button' type='button' class='btn btn-default'>No</button></div>");
+        $('#confirmEnterGame-button').on('click', buttons[0]);
+        $('#denyEnterGame-button').on('click', buttons[1]);
+    }
 
     this.blockButtons = function(type){
         if(type == "turnBased"){
             questionButton.prop("disabled", true);
         }
-        moveButton.prop("disabled", true);
         startButton.prop("disabled", true);
     }
 
     this.enableButtons = function() {
-        moveButton.prop("disabled", false);
         questionButton.prop("disabled", false);
         startButton.prop("disabled", false);
-    } 
+    }
 
-     moveButton.on('click',function(){
-        //socket.emit('playerMoved',myGame);
-    });
+    this.enterGameMessage = function(header, body, buttons){
+        enterGamePrompt.show();
+        if(buttons == undefined){
+            $('.panel-heading',enterGamePrompt).empty().append(header);
+            $('.panel-body',enterGamePrompt).empty().append(body);
+        } else {
+            createEnterGamePromt(header, body, buttons);
+        }
+    }
+
+    this.hideEnterGamePrompt = function(){
+        enterGamePrompt.hide();
+    }
+
+    this.waitForResponse = function(){
+        $('body').addClass("loading");
+    }
+
+    this.responseRecieved = function(){
+        $('body').removeClass("loading");
+    }
+
+    this.updatePlayerSelector = function(players){
+        selectPlayers.empty();
+        for(var i=0; i < players.length; i++){
+            if(players[i].socketId != player.socketId){
+                selectPlayers.append('<option value="' + players[i].socketId + '">' + players[i].username+ '</option>')
+            }
+        }
+    }
+
+    this.setPlayerColorInfo = function(){
+        playerColorInfo.html('<p style="color:' + player.color + ';">Your Color is ' + player.color + '</p>');
+    }
 
     questionButton.on('click', function(){
         gameSession.questionButtonEvent();
@@ -193,7 +233,7 @@ function Inputs(newGameSession) {
     $('.btn-group').button();
     turnBasedToggle.addClass("active");
     usernameInput.keypress(function(e){
-        gameSession.usernameInputEvent(e)
+        gameSession.usernameInputEvent(e, usernameInput.val())
     });
 
 }
@@ -201,15 +241,12 @@ function Inputs(newGameSession) {
 function GameSession() {
     //variables
     var socket = io.connect(window.location.hostname),
-        enterGamePrompt = $('#enterGame-prompt'),
         gamehtml = $('#gamehtml'),
+        madeFirstMove = false;
         lobbyhtml = $('#lobbyhtml'),
         uiblock = $('#cover'),
         loadingBox = $('#loadingBox'),
         chooseHandlehtml = $('#chooseHandle'),
-        usernameInput = $('#username'),
-        selectPlayers = $('#select-players'),
-        playerColorInfo = $('#yourColorInfo'),
         gameType = 'turnBased',
         programState = '',
         myUsername = '',
@@ -219,7 +256,7 @@ function GameSession() {
         thisObj = this,
         gameStarted = false,
         inputs = new Inputs(this),
-        playerId = Math.round($.now()*Math.random());
+        playerId = Math.round($.now()*Math.random()),
         board = null;
 
     // private functions
@@ -241,6 +278,10 @@ function GameSession() {
             board.addMovementPoint();
             board.setMessage("Click adjescent field to move");
             updatePositions();
+            if(!madeFirstMove){
+                madeFirstMove = true;
+                bootbox.alert("Correct! Now click an adjescent field to move.")
+            }
         }
         else{
             bootbox.alert("Sorry, that's wrong!");
@@ -254,6 +295,7 @@ function GameSession() {
         bootboxObj = {
             title   : data.title,
             message : data.question,
+            closeButton: false,
             buttons : {}
         };
         for(var i = 0; i < data.options.length; i++){
@@ -276,29 +318,7 @@ function GameSession() {
     }
 
     function updatePlayerSelector(){
-        selectPlayers.empty();
-        for(var i=0; i < players.length; i++){
-            if(players[i].socketId != player.socketId){
-                selectPlayers.append('<option value="' + players[i].socketId + '">' + players[i].username+ '</option>')
-            }
-        }
-    }
-
-    function waitForResponse(){
-        $('body').addClass("loading");
-    }
-
-    function responseRecieved(){
-        $('body').removeClass("loading");
-    }
-
-    function enterGameMessage(header, body){
-        $('.panel-heading',enterGamePrompt).empty().append(header);
-        $('.panel-body',enterGamePrompt).empty().append(body);
-    }
-
-    function setPlayerColorInfo(){
-        playerColorInfo.html('<p style="color:' + player.color + ';">Your Color is ' + player.color + '</p>');
+        inputs.updatePlayerSelector(players);
     }
 
     //public funcions
@@ -338,14 +358,14 @@ function GameSession() {
         }
     }
 
-    this.usernameInputEvent = function(key){
+    this.usernameInputEvent = function(key, val){
          if(key.keyCode == 13){
-            myUsername = usernameInput.val();
+            myUsername = val;
             key.preventDefault();
             key.stopPropagation();
             chooseHandlehtml.hide();
             lobbyhtml.show();
-            enterGamePrompt.hide();
+            inputs.hideEnterGamePrompt();
             socket.emit('newPlayer', {
                 'playerName' : myUsername
             });
@@ -358,9 +378,6 @@ function GameSession() {
         console.log("Event: New Player");
         players = data;
         console.log("newPlayer called this" + players);
-        if(programState === 'game'){
-            updatePositions();
-        }
         if(programState === 'lobby') {
             updatePlayerSelector();
         }
@@ -464,27 +481,34 @@ function GameSession() {
                 promptingPlayerName = players[i].username;
             }
         }
-        enterGamePrompt.show();
-        enterGameMessage("Player " + promptingPlayerName + " wants to start a game with you", "Do you want to enter enter a new game with " + promptingPlayerName + "? <br>" + "<div class='btn-group'><button id='confirmEnterGame-button' type='button' class='btn btn-default'>Yes</button><button id='denyEnterGame-button' type='button' class='btn btn-default'>No</button></div>");
+        var buttonFunctions = [
+            function(){
+                console.log("it's confirmed!");
+                socket.emit('confirmEnterGame');
+            },
+            function(){
+                socket.emit('playerDenied', id);
+            }
+        ]
+        inputs.enterGameMessage("Player " + promptingPlayerName + " wants to start a game with you","Do you want to enter enter a new game with " + promptingPlayerName + "?", buttonFunctions);       
+        /*enterGameMessage("Player " + promptingPlayerName + " wants to start a game with you", "Do you want to enter enter a new game with " + promptingPlayerName + "? <br>" + "<div class='btn-group'><button id='confirmEnterGame-button' type='button' class='btn btn-default'>Yes</button><button id='denyEnterGame-button' type='button' class='btn btn-default'>No</button></div>");
         $('#confirmEnterGame-button').on('click', function(){
             console.log("it's confirmed!");
             socket.emit('confirmEnterGame');
         });
         $('#denyEnterGame-button').on('click', function(){
             socket.emit('playerDenied', id);
-        });
+        });*/
     });
 
     socket.on('playerBusy', function(player){
         console.log("Event: PlayerBusy");
-        enterGamePrompt.show();
-        $('.panel-heading',enterGamePrompt).empty().append("Player " + player.username + " is busy");
-        $('.panel-body',enterGamePrompt).empty().append("Try to find a player that is not busy.");
+        inputs.enterGameMessage("Player " + player.username + " is busy","Try to find a player that is not busy.");
     });
 
     socket.on('waitForResponse', function(game){
         console.log("Event: WaitForResponse");
-        waitForResponse();
+        inputs.waitForResponse();
         programState = 'waiting';
         myGame = game;
     });
@@ -492,14 +516,13 @@ function GameSession() {
     socket.on('abortGame', function(aborterId){
         console.log("Event: AbortGame");
         if(programState === 'prompted') {
-            enterGamePrompt.hide();
+            inputs.hideEnterGamePrompt();
         } else if(programState === 'waiting'){
-            responseRecieved();
+            inputs.responseRecieved();
             if(socket.socket.sessionid === aborterId){
-                enterGamePrompt.hide();
+                inputs.hideEnterGamePrompt();
             } else {
-                enterGamePrompt.show();
-                enterGameMessage("Game Cancelled", "Someone turned down your request");    
+                inputs.enterGameMessage("Game Cancelled", "Someone turned down your request");    
             }
         }
         programState = 'lobby';
@@ -507,14 +530,12 @@ function GameSession() {
 
     socket.on('gameAmountOverflow', function(){
         console.log("Event: gameAmountOverFlow");
-        enterGamePrompt.show();
-        enterGameMessage("Cannot start another game", "you cannot initiate more than one game at a time");
+        inputs.enterGameMessage("Cannot start another game", "you cannot initiate more than one game at a time");
     });
 
     socket.on('tooManyPlayers', function(){
         console.log("Event: TooManyPlayers");
-        enterGamePrompt.show();
-        enterGameMessage("Cannot start game", "You must select between 1 and 4 players");
+        inputs.enterGameMessage("Cannot start game", "You must select between 1 and 4 players");
     });
 
     socket.on('enterGame', function (game, playerObject) {
@@ -525,14 +546,14 @@ function GameSession() {
         gamehtml.show();
         myGame = game;
         player = playerObject;
-        setPlayerColorInfo();
+        inputs.setPlayerColorInfo();
         board = new Board(game.categoriesArr, thisObj);
         updatePositions();
     });
 
     socket.on('illegalMove', function(){
         console.log("Event: IllegalMove");
-        board.setMessage("Cannot make that move, you can only move 1 field");
+        board.setMessage("You can only move 1 field");
         updatePositions();
     });   
 
