@@ -399,9 +399,11 @@ function GameSession() {
     socket.on('init',function(data){
        console.log("Event: Init");
        players = data;
-       //this is not good
-       player = players[players.length - 1];
-       console.log("init called this" + players);
+       for (var i = 0; i < players.length; i++) {
+           if(players[i].socketId === socket.socket.sessionid){
+                player = players[i];
+           }
+       }
        if(programState === 'game'){
             updatePositions();
         }
@@ -409,7 +411,6 @@ function GameSession() {
 
     socket.on('questionResponse',function(data){
         console.log("Event: QuestionResponse");
-        console.log(data);
         showQuestion(data);
     });
 
@@ -442,7 +443,6 @@ function GameSession() {
         board.setMessage("game Started");
         updatePositions();
         socket.emit('ready',myGame);
-        console.log(gameType);
     });
 
     socket.on('startTurn', function() {
@@ -491,14 +491,6 @@ function GameSession() {
             }
         ]
         inputs.enterGameMessage("Player " + promptingPlayerName + " wants to start a game with you","Do you want to enter enter a new game with " + promptingPlayerName + "?", buttonFunctions);       
-        /*enterGameMessage("Player " + promptingPlayerName + " wants to start a game with you", "Do you want to enter enter a new game with " + promptingPlayerName + "? <br>" + "<div class='btn-group'><button id='confirmEnterGame-button' type='button' class='btn btn-default'>Yes</button><button id='denyEnterGame-button' type='button' class='btn btn-default'>No</button></div>");
-        $('#confirmEnterGame-button').on('click', function(){
-            console.log("it's confirmed!");
-            socket.emit('confirmEnterGame');
-        });
-        $('#denyEnterGame-button').on('click', function(){
-            socket.emit('playerDenied', id);
-        });*/
     });
 
     socket.on('playerBusy', function(player){
