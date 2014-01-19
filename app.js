@@ -9,6 +9,7 @@ var io = require('socket.io').listen(app.listen(port));
 
 //set public folder for holding resources
 app.use(express.static(__dirname + '/public'));
+//set server to respond with layout.html if only / is in URL
 app.get('/', function(req, res) {
     res.sendfile(__dirname + '/public/layout.html')
 });
@@ -302,7 +303,6 @@ io.sockets.on('connection', function(socket){
         //check if there is a game with the disconnecting player
         for (var j = 0; j < games.length; j++) {
             for(var k = 0; k < games[j].players.length; k++){
-                console.log(games[j].initiator.username);
                 if(games[j].players[k].socketId === socket.id){
                     //if game hasn't started yet, cancel the game completely
                     if(!games[j].entered) {
@@ -311,8 +311,9 @@ io.sockets.on('connection', function(socket){
                     } else {
                         if(games[j].players.length > 2) {
                             //If the disconnecting player has the turn, pass it on to the next
-                            if(games[j].idHasTurn === games[j].players[k].socketId){
+                            if(games[j].idHasTurn === games[j].players[k].socketId && games[j].gameType === 'turnBased'){
                                 console.log("Emitted: startTurn");
+                                games[j].idHasTurn = games[j].players[(k+1)%games[j].players.length].socketId;
                                 io.sockets.socket(games[j].players[(k+1)%games[j].players.length].socketId).emit('startTurn');
                             }
                         } else
@@ -489,33 +490,35 @@ socket.on('requestMove',function(coords, game) {
         winningMove = false;
     for (var i = 0; i < games.length; i++) {
         if(games[i].id == game.id){
-            for(var j = 0; j < games[i].players.length; j++){
-                if(games[i].players[j].socketId === socket.id){
-                    if(checkLegalMove(coords, games[i].players[j])){
-                        games[i].players[j].position = coords;
-                        movement = true;
-                        if(coords.x == (games[i].boardSize-1)/2 && coords.y == (games[i].boardSize-1)/2){
-                            winningMove = true;
-                            games[i].players[j].winner = true;
+            if(socket.id === games[i].idHasTurn || games[i].gameType === 'race'){
+                for(var j = 0; j < games[i].players.length; j++){
+                    if(games[i].players[j].socketId === socket.id){
+                        if(checkLegalMove(coords, games[i].players[j])){
+                            games[i].players[j].position = coords;
+                            movement = true;
+                            if(coords.x == (games[i].boardSize-1)/2 && coords.y == (games[i].boardSize-1)/2){
+                                winningMove = true;
+                                games[i].players[j].winner = true;
+                            }
+                        } else {
+                            console.log("Emitted: illegalMove");
+                            socket.emit('illegalMove');
                         }
-                    } else {
-                        console.log("Emitted: illegalMove");
-                        socket.emit('illegalMove');
                     }
                 }
-            }
-            if(movement){
-                for(j = 0; j < games[i].players.length; j++){
-                    console.log("Emitted: playerMoved");
-                    io.sockets.socket(games[i].players[j].socketId).emit('playerMoved', games[i], socket.id);
-                    if(winningMove){
-                        if(games[i].players[j].socketId != socket.id){
-                            console.log("Emitted: playerLost");
-                            io.sockets.socket(games[i].players[j].socketId).emit('playerLost');
-                        } else {
-                            games[i].players[(j+1)%games[i].players.length].winner = true;
-                            console.log("Emitted: playerWon");
-                            socket.emit('playerWon');
+                if(movement){
+                    for(j = 0; j < games[i].players.length; j++){
+                        console.log("Emitted: playerMoved");
+                        io.sockets.socket(games[i].players[j].socketId).emit('playerMoved', games[i], socket.id);
+                        if(winningMove){
+                            if(games[i].players[j].socketId != socket.id){
+                                console.log("Emitted: playerLost");
+                                io.sockets.socket(games[i].players[j].socketId).emit('playerLost');
+                            } else {
+                                games[i].players[(j+1)%games[i].players.length].winner = true;
+                                console.log("Emitted: playerWon");
+                                socket.emit('playerWon');
+                            }
                         }
                     }
                 }
