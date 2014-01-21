@@ -195,9 +195,9 @@ function Inputs(newGameSession) {
 
     this.updatePlayerSelector = function(players){
         selectPlayers.empty();
-        for(var i=0; i < players.length; i++){
-            if(players[i].socketId != player.socketId){
-                selectPlayers.append('<option value="' + players[i].socketId + '">' + players[i].username+ '</option>')
+        for(var id in players){
+            if(players[id].socketId != player.socketId){
+                selectPlayers.append('<option value="' + players[id].socketId + '">' + players[id].username+ '</option>');
             }
         }
     }
@@ -354,7 +354,7 @@ function GameSession() {
     this.abortEnterGameEvent = function(){
          console.log(socket.socket.sessionid);
         if(programState === "waiting"){
-            socket.emit('playerDenied', myGame.initiator.socketId);
+            socket.emit('playerDenied', myGame.initiator.socketId, myGame);
         }
     }
 
@@ -399,11 +399,7 @@ function GameSession() {
     socket.on('init',function(data){
        console.log("Event: Init");
        players = data;
-       for (var i = 0; i < players.length; i++) {
-           if(players[i].socketId === socket.socket.sessionid){
-                player = players[i];
-           }
-       }
+       player = players[socket.socket.sessionid];
        if(programState === 'game'){
             updatePositions();
         }
@@ -472,22 +468,19 @@ function GameSession() {
         updatePlayerSelector();
     });
 
-    socket.on('promptEnterGame', function(id){
+    socket.on('promptEnterGame', function(id, game){
         console.log("Event: PromptEnterGame");
         var promptingPlayerName;
+        myGame = game
         programState = 'prompted';
-        for(var i=0; i < players.length; i++){
-            if(id === players[i].socketId){
-                promptingPlayerName = players[i].username;
-            }
-        }
+        promptingPlayerName = players[id].username;
         var buttonFunctions = [
             function(){
                 console.log("it's confirmed!");
-                socket.emit('confirmEnterGame');
+                socket.emit('confirmEnterGame', myGame);
             },
             function(){
-                socket.emit('playerDenied', id);
+                socket.emit('playerDenied', id, myGame);
             }
         ]
         inputs.enterGameMessage("Player " + promptingPlayerName + " wants to start a game with you","Do you want to enter enter a new game with " + promptingPlayerName + "?", buttonFunctions);       
@@ -527,7 +520,7 @@ function GameSession() {
 
     socket.on('tooManyPlayers', function(){
         console.log("Event: TooManyPlayers");
-        inputs.enterGameMessage("Cannot start game", "You must select between 1 and 4 players");
+        inputs.enterGameMessage("Cannot start game", "You must select between 1 and 3 players");
     });
 
     socket.on('enterGame', function (game, playerObject) {

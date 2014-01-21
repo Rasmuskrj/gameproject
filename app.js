@@ -46,8 +46,8 @@ function Game(gameplayers, initiator, id){
 }
 
 //server global variables
-var players = [],
-    games = [],
+var players = {},
+    games = {},
     colors = ['red','blue','yellow','green'],
     categories = ['historie', 'dansk', 'engelsk', 'naturteknik'],
     idHasTurn = 0,
@@ -78,37 +78,23 @@ function shuffle(array) {
 }
 
 //Will cause all players in a game with the initator to go back to idle screen. There should only be one game with this initiator.
-function abort(initiatorId, socketid){
+function abort(initiatorId, socketid, game){
     //array to hold players that need to be informed
-    var involvedPlayers = [],
+    var currentGame,
         entered = true;
-    //find initiators game
-    for(var i=0; i < games.length; i++){
-        if(games[i].initiator.socketId === initiatorId){
-            //check if game is already entered
-            if(!games[i].entered){
-                entered = false;
-                //send abortGame event to all players in this game
-                for(var j=0; j < games[i].players.length; j++){
-                    console.log("Emitted: abortGame");
-                    io.sockets.socket(games[i].players[j].socketId).emit("abortGame", socketid);
-                    involvedPlayers.push(games[i].players[j]);
-                }
-                //remove game from games array
-                games.splice(i,1);
-                console.log(games);
-            }
+    //find game
+    currentGame = games[game.id];
+    //check if game is already entered
+    if(!currentGame.entered){
+        entered = false;
+        //send abortGame event to all players in this game
+        for(var j=0; j < currentGame.players.length; j++){
+            console.log("Emitted: abortGame");
+            io.sockets.socket(currentGame.players[j].socketId).emit("abortGame", socketid);
+            players[currentGame.players[j].socketId].idle = true;
         }
-    }
-    if(!entered){
-        //slightly ineffecient code
-        for(var k=0; k < players.length; k++){
-            for (var h = 0; h < involvedPlayers.length; h++) {
-                if(players[k].socketId === involvedPlayers[h].socketId){
-                    players[k].idle = true;
-                }
-            }
-        }
+        //remove game from games array
+        delete games[game.id];
     }
 }
 
@@ -168,7 +154,8 @@ io.sockets.on('connection', function(socket){
         console.log("Event: NewPlayer");
         //add player to players array
         var player = new Player({x: 0, y: 0}, 'red', socket.id, data.playerName);
-        players.push(player);
+        //players.push(player);
+        players[socket.id] = player;
         //inform other players of new player
         console.log("Emitted: newPlayer");
         socket.broadcast.emit('newPlayer',players);
@@ -180,20 +167,19 @@ io.sockets.on('connection', function(socket){
     //Event called by client when they request a question from the server
     socket.on('question', function(game){
         var questionCategory,
+            currentGame,
             player;
         console.log("Event: question");
         //find game and player to get the position, and set questionCategory with the corresponding category
-        for(var i = 0; i < games.length; i++){
-            if(games[i].id == game.id){
-                for(var j = 0; j < games[i].players.length; j++){
-                    if(games[i].players[j].socketId === socket.id){
-                        player = games[i].players[j];
-                        questionCategory = games[i].categoriesArr[player.position.x][player.position.y];
-                    }
-                }
-                break;
+
+        currentGame = games[game.id]
+        for(var j = 0; j < currentGame.players.length; j++){
+            if(currentGame.players[j].socketId === socket.id){
+                player = currentGame.players[j];
+                questionCategory = currentGame.categoriesArr[player.position.x][player.position.y];
             }
         }
+
         //call database module and provide anonymous function as callback. questionObj provided by database module
         database.getQuestion(questionCategory ,function(questionObj){
         //init question
@@ -222,28 +208,33 @@ io.sockets.on('connection', function(socket){
     
     //Event called when cleints press start game. Argument is an object
     socket.on('startGame', function(data) {
-        var gameType = '';
+        var gameType = '',
+            currentGame;
         console.log("Event: Start Game");
 
-        gameType = data.gameType;
         //reset position and status for all players in game
-        for(var i = 0; i < games.length; i++){
-            if(games[i].id == data.game.id){
-                games[i].gameType = data.gameType;
-                for(var j = 0; j < games[i].players.length; j++){
-                    games[i].players = resetToBasePos(games[i].players, games[i].boardSize);
-                    games[i].players[j].winner = false;
-                    games[i].players[j].ready = false;
-                }
-                break
+        //Inform clients that the startGame button has been pressed, and set the initiator to have the first turn
+
+        currentGame = games[data.game.id];
+        currentGame.gameType = data.gameType;
+        for(var j = 0; j < currentGame.players.length; j++){
+            currentGame.players = resetToBasePos(currentGame.players, currentGame.boardSize);
+            currentGame.players[j].winner = false;
+            currentGame.players[j].ready = false;
+            console.log("Emitted: gameStarted");
+            io.sockets.socket(currentGame.players[j].socketId).emit('gameStarted', currentGame, currentGame.gameType);
+            if(socket.id === currentGame.players[j].socketId){
+                currentGame.idHasTurn = currentGame.players[j].socketId;
             }
         }
-        //Inform clients that the startGame button has been pressed, and set the initiator to have the first turn
-        for(i = 0; i < games.length; i++){
+
+        games[data.game.id] = currentGame;
+
+        /*for(i = 0; i < games.length; i++){
             if(games[i].id == data.game.id){
                 for(j = 0; j < games[i].players.length; j++){
                     console.log("Emitted: gameStarted");
-                    io.sockets.socket(games[i].players[j].socketId).emit('gameStarted', games[i], gameType);
+                    io.sockets.socket(games[i].players[j].socketId).emit('gameStarted', games[i], currentGame.gameType);
                     if(socket.id === games[i].players[j].socketId){
                         games[i].idHasTurn = games[i].players[j].socketId;
                     }
@@ -251,7 +242,7 @@ io.sockets.on('connection', function(socket){
                 break
 
             }
-        }
+        }*/
     });
     
     //clients emit ready, when they are ready to start the game
@@ -261,21 +252,17 @@ io.sockets.on('connection', function(socket){
         var playersReady = 0,
             currentGame = null;
         //find game, set caller as ready and count ready players
-        for (var i = 0; i < games.length; i++) {
-            if(game.id == games[i].id){
-                currentGame = games[i];
-                for(var j = 0; j < games[i].players.length; j++){
-                    if(games[i].players[j].socketId == socket.id){
-                        games[i].players[j].ready = true;
-                        playersReady++;
-                    } else if(games[i].players[j].ready){
-                        playersReady++;
-                    }
-                }
-                break
-
+        
+        currentGame = games[game.id];
+        for(var j = 0; j < currentGame.players.length; j++){
+            if(currentGame.players[j].socketId == socket.id){
+                currentGame.players[j].ready = true;
+                playersReady++;
+            } else if(currentGame.players[j].ready){
+                playersReady++;
             }
         }
+
         // if all players are ready, tell the correct player to start turn
         if(currentGame != null && playersReady >= currentGame.players.length && currentGame.gameType == 'turnBased'){
             for (i = 0; i < currentGame.players.length; i++) {
@@ -285,6 +272,8 @@ io.sockets.on('connection', function(socket){
                 }
             }
         }
+
+        games[game.id] = currentGame;
     });
     
     //event called when a player/client disconnects. Native in socket.io
@@ -293,42 +282,45 @@ io.sockets.on('connection', function(socket){
         console.log("Event: Disconnect");
 
         //remove player form players array
-        for(var i = 0; i < players.length; i++){
+        delete players[socket.id];
+        /*for(var i = 0; i < players.length; i++){
             if(players[i].socketId == socket.id){
                 colors.push(players[i].color);
                 players.splice(i,1);
             }
-        }
+        }*/
         //handling games where players are prompting other players to join and games in progress
         //check if there is a game with the disconnecting player
-        for (var j = 0; j < games.length; j++) {
-            for(var k = 0; k < games[j].players.length; k++){
-                if(games[j].players[k].socketId === socket.id){
+        for (var id in games) {
+            currentGame = games[id];
+            for(var k = 0; k < currentGame.players.length; k++){
+                if(currentGame.players[k].socketId === socket.id){
                     //if game hasn't started yet, cancel the game completely
-                    if(!games[j].entered) {
-                        abort(games[j].initiator.socketId);
+                    if(!currentGame.entered) {
+                        abort(currentGame.initiator.socketId, socket.id, currentGame);
                         break
                     } else {
-                        if(games[j].players.length > 2) {
+                        if(currentGame.players.length > 2) {
                             //If the disconnecting player has the turn, pass it on to the next
-                            if(games[j].idHasTurn === games[j].players[k].socketId && games[j].gameType === 'turnBased'){
+                            if(currentGame.idHasTurn === currentGame.players[k].socketId && currentGame.gameType === 'turnBased'){
                                 console.log("Emitted: startTurn");
-                                games[j].idHasTurn = games[j].players[(k+1)%games[j].players.length].socketId;
-                                io.sockets.socket(games[j].players[(k+1)%games[j].players.length].socketId).emit('startTurn');
+                                currentGame.idHasTurn = currentGame.players[(k+1)%currentGame.players.length].socketId;
+                                io.sockets.socket(currentGame.players[(k+1)%currentGame.players.length].socketId).emit('startTurn');
                             }
                         } else
                         //If there is only 1 player left, declare this one the winner
                         {
-                            games[j].players[(k+1)%games[j].players.length].winner = true;
+                            currentGame.players[(k+1)%currentGame.players.length].winner = true;
                             console.log("Emitted: playerWon");
-                            io.sockets.socket(games[j].players[(k+1)%games[j].players.length].socketId).emit('playerWon');
+                            io.sockets.socket(currentGame.players[(k+1)%currentGame.players.length].socketId).emit('playerWon');
                         }
                         //else just remove the player
-                        games[j].players.splice(k,1);
-                        currentGame = games[j];
+                        currentGame.players.splice(k,1);
                         //if game is empty, delete the game
-                        if(games[j].players.length == 0){
-                            games.splice(j,1);
+                        if(currentGame.players.length == 0){
+                            delete games[id];
+                        } else {
+                            games[id] = currentGame;
                         }
                         break
                     }
@@ -343,15 +335,11 @@ io.sockets.on('connection', function(socket){
     socket.on('turnEnded', function(game) {
         console.log("Event: Turn Ended");
         var currentGame = null;
-        for (var i = 0; i < games.length; i++) {
-            if(games[i].id == game.id){
-                currentGame = games[i];
-            }
-        }
+        currentGame = games[game.id]
         if(currentGame.gameType == "turnBased"){
             for (i = 0; i < currentGame.players.length; i++) {
                 if (currentGame.players[i].socketId === socket.id) {
-                    if(!players[i].winner){
+                    if(!currentGame.players[i].winner){
                         console.log("Emitted: startTurn");
                         io.sockets.socket(currentGame.players[(i+1)%currentGame.players.length].socketId).emit('startTurn');
                         currentGame.idHasTurn = currentGame.players[(i+1)%currentGame.players.length].socketId;
@@ -359,11 +347,7 @@ io.sockets.on('connection', function(socket){
                 }
             }
         }
-        for (i = 0; i < games.length; i++) {
-            if(games[i].id == game.id){
-                games[i] = currentGame;
-            }
-        }
+        games[game.id] = currentGame;
     });
 
     socket.on('queryPlayerList', function(){
@@ -377,8 +361,8 @@ io.sockets.on('connection', function(socket){
         var involvedPlayers = [];
         var numIdle = 0;
         console.log("Event: RequestEnterGame");
-        for(var h=0; h < games.length; h++){
-            if(games[h].initiator.socketId === socket.id){
+        for(gid in games){
+            if(games[gid].initiator.socketId === socket.id){
                 console.log("Emitted: gameAmountOverflow");
                 socket.emit("gameAmountOverflow");
                 return
@@ -386,46 +370,36 @@ io.sockets.on('connection', function(socket){
         }
         if(selectedPlayers != null && selectedPlayers.length > 0 && selectedPlayers.length <= gameSize - 1){
             for(var i=0; i<selectedPlayers.length; i++){
-                for(var j=0; j < players.length; j++){
-                    if(selectedPlayers[i] === players[j].socketId){
-                        if(players[j].idle){
-                            numIdle++;
-                            involvedPlayers.push(players[j]);
-                            if(numIdle == selectedPlayers.length){
-                                requestSent = true;
-                            }
-                        } else {
-                            console.log("Emitted: playerBusy");
-                            socket.emit('playerBusy', players[j]);
-                            requestSent = false;
-                            break
-                        }
+                if(players[selectedPlayers[i]].idle){
+                    numIdle++;
+                    involvedPlayers.push(players[selectedPlayers[i]]);
+                    if(numIdle == selectedPlayers.length){
+                        requestSent = true;
                     }
+                } else {
+                    console.log("Emitted: playerBusy");
+                    socket.emit('playerBusy', players[selectedPlayers[i]]);
+                    requestSent = false;
+                    break
                 }
             }
             if(requestSent){
-                for(var k=0; k < players.length; k++){
-                    if(socket.id === players[k].socketId){
-                        players[k].idle = false;
-                        involvedPlayers.push(players[k]);
-                        involvedPlayers[involvedPlayers.length - 1].readyToEnter = true;
-                        games.push(new Game(involvedPlayers, players[k], nextGameId));
-                        console.log("Emitted: waitForResponse");
-                        socket.emit('waitForResponse', games[games.length - 1]);
-                        if(nextGameId < Math.pow(2,32) - 2){
-                            nextGameId++;
-                        } else {
-                            nextGameId = 0;
-                        }
-                        //addGame(involvedPlayers,players[k]);
-                    }
-                    for(i = 0; i < selectedPlayers.length; i++){
-                        if(players[k].socketId === selectedPlayers[i]){
-                            console.log("Emitted: promptEnterGame");
-                            io.sockets.socket(players[k].socketId).emit("promptEnterGame", socket.id);
-                            players[k].idle = false;
-                        }
-                    } 
+                players[socket.id].idle = false;
+                involvedPlayers.push(players[socket.id]);
+                involvedPlayers[involvedPlayers.length - 1].readyToEnter = true;
+                games["id" + nextGameId] = new Game(involvedPlayers, players[socket.id], "id" + nextGameId);
+                var thisgame = games["id" + nextGameId];
+                console.log("Emitted: waitForResponse");
+                socket.emit('waitForResponse', thisgame);
+                if(nextGameId < Math.pow(2,32) - 2){
+                    nextGameId++;
+                } else {
+                    nextGameId = 0;
+                }
+                for(i = 0; i < selectedPlayers.length; i++){
+                    console.log("Emitted: promptEnterGame");
+                    io.sockets.socket(players[selectedPlayers[i]].socketId).emit("promptEnterGame", socket.id, thisgame);
+                    players[selectedPlayers[i]].idle = false;
                 }
             }
         } else if(selectedPlayers.length > gameSize - 1) {
@@ -434,24 +408,23 @@ io.sockets.on('connection', function(socket){
         }
     });
     
-    socket.on('playerDenied', function(id) {
+    socket.on('playerDenied', function(id, game) {
         console.log("Event: PlayerDenied");
-        abort(id, socket.id);
+        abort(id, socket.id, games[game.id]);
     });
 
-    socket.on('confirmEnterGame', function(){
+    socket.on('confirmEnterGame', function(game){
         var currentGame = null,
             numReadyToEnter = 0;
         console.log("Event: confirmEnterGame");
-        for(var i=0; i < games.length; i++){
-            for(var j=0; j < games[i].players.length; j++){
-                if(games[i].players[j].socketId === socket.id){
-                    games[i].players[j].readyToEnter = true;
-                    currentGame = games[i];
-                    break
-                }
+        currentGame = games[game.id]
+        for(var j=0; j < currentGame.players.length; j++){
+            if(currentGame.players[j].socketId === socket.id){
+                currentGame.players[j].readyToEnter = true;
+                break
             }
         }
+
         for (var k = 0; k < currentGame.players.length; k++) {
             if(currentGame.players[k].readyToEnter){
                 numReadyToEnter++;
@@ -467,66 +440,62 @@ io.sockets.on('connection', function(socket){
                 console.log("Emitted: enterGame");
                 io.sockets.socket(currentGame.players[k].socketId).emit("enterGame",currentGame, currentGame.players[k]);                
             }
-            for(i = 0; i < games.length; i++){
-                if(currentGame.id == games[i].id){
-                    games[i].entered = true;
-                    games[i] = currentGame;
-                }
-            }
-
+            currentGame.entered = true;
         } else {
             console.log("Emitted: waitForResponse");
             socket.emit('waitForResponse', currentGame);
         }
+        games[game.id] = currentGame;
     });
 
 /*
 *
 * parameters: {x: int, y: int}, game
 */
-socket.on('requestMove',function(coords, game) {
-    console.log('Event: requestMove');
-    var movement = false,
-        winningMove = false;
-    for (var i = 0; i < games.length; i++) {
-        if(games[i].id == game.id){
-            if(socket.id === games[i].idHasTurn || games[i].gameType === 'race'){
-                for(var j = 0; j < games[i].players.length; j++){
-                    if(games[i].players[j].socketId === socket.id){
-                        if(checkLegalMove(coords, games[i].players[j])){
-                            games[i].players[j].position = coords;
-                            movement = true;
-                            if(coords.x == (games[i].boardSize-1)/2 && coords.y == (games[i].boardSize-1)/2){
-                                winningMove = true;
-                                games[i].players[j].winner = true;
-                            }
-                        } else {
-                            console.log("Emitted: illegalMove");
-                            socket.emit('illegalMove');
+    socket.on('requestMove',function(coords, game) {
+        console.log('Event: requestMove');
+        var movement = false,
+            curentGame = null,
+            winningMove = false;
+
+        currentGame = games[game.id];
+        if(socket.id === currentGame.idHasTurn || currentGame.gameType === 'race'){
+            for(var j = 0; j < currentGame.players.length; j++){
+                if(currentGame.players[j].socketId === socket.id){
+                    if(checkLegalMove(coords, currentGame.players[j])){
+                        currentGame.players[j].position = coords;
+                        movement = true;
+                        if(coords.x == (currentGame.boardSize-1)/2 && coords.y == (currentGame.boardSize-1)/2){
+                            winningMove = true;
+                            currentGame.players[j].winner = true;
                         }
+                    } else {
+                        console.log("Emitted: illegalMove");
+                        socket.emit('illegalMove');
                     }
                 }
-                if(movement){
-                    for(j = 0; j < games[i].players.length; j++){
-                        console.log("Emitted: playerMoved");
-                        io.sockets.socket(games[i].players[j].socketId).emit('playerMoved', games[i], socket.id);
-                        if(winningMove){
-                            if(games[i].players[j].socketId != socket.id){
-                                console.log("Emitted: playerLost");
-                                io.sockets.socket(games[i].players[j].socketId).emit('playerLost');
-                            } else {
-                                games[i].players[(j+1)%games[i].players.length].winner = true;
-                                console.log("Emitted: playerWon");
-                                socket.emit('playerWon');
-                            }
+            }
+            if(movement){
+                for(j = 0; j < currentGame.players.length; j++){
+                    console.log("Emitted: playerMoved");
+                    io.sockets.socket(currentGame.players[j].socketId).emit('playerMoved', currentGame, socket.id);
+                    if(winningMove){
+                        if(currentGame.players[j].socketId != socket.id){
+                            console.log("Emitted: playerLost");
+                            io.sockets.socket(currentGame.players[j].socketId).emit('playerLost');
+                        } else {
+                            currentGame.players[(j+1)%currentGame.players.length].winner = true;
+                            console.log("Emitted: playerWon");
+                            socket.emit('playerWon');
                         }
                     }
                 }
             }
-            break;
         }
-    }
-});
+
+        games[game.id] = currentGame;
+
+    });
 
 });
 
